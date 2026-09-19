@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils/cn";
 
 const STATUSES: { key: WorkStatus; label: string; badge: string }[] = [
   { key: "pending", label: "Pending", badge: "bg-gray-500/15 text-gray-300 border-gray-500/30" },
-  { key: "ongoing", label: "Ongoing", badge: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+  { key: "ongoing", label: "Ongoing", badge: "border-emerald-200 bg-emerald-50 text-[var(--color-primary)]" },
   { key: "on_hold", label: "On Hold", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
   { key: "completed", label: "Completed", badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
 ];
@@ -70,7 +70,8 @@ export function WorkView({ initialRows, total, clients, workTypes }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Work</h1>
+          <p className="eyebrow">Client delivery</p>
+          <h1 className="page-title">Work records</h1>
           <p className="text-sm text-(--color-text-secondary)">Track work by client, type, and status</p>
         </div>
         <Button type="button" onClick={() => setModal("create")}>
@@ -182,7 +183,7 @@ export function WorkView({ initialRows, total, clients, workTypes }: Props) {
           </thead>
           <tbody>
             {filteredRows.map((r) => (
-              <tr key={r.id} className="hover:bg-white/3">
+              <tr key={r.id} className="hover:bg-slate-50">
                 <Td className="font-medium">
                   <div className="min-w-0">
                     <p className="truncate">{r.work}</p>

@@ -10,8 +10,9 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Reports</h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">Income vs expense and client mix</p>
+        <p className="eyebrow">Financial intelligence</p>
+        <h1 className="page-title">Reports</h1>
+        <p className="page-subtitle">Income vs expense and client mix.</p>
       </div>
       <ReportCharts monthly={monthly} weekly={weekly} byClient={byClient} />
     </div>

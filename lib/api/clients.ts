@@ -2,7 +2,7 @@ import "server-only";
 
 import { ObjectId } from "mongodb";
 import { COL, getDb } from "@/lib/db/mongodb";
-import { toDateOnly, toId, toIso } from "@/lib/db/serialize";
+import { toId, toIso } from "@/lib/db/serialize";
 import type { ClientRow, WorkType } from "@/lib/types/database";
 
 type ClientDoc = {

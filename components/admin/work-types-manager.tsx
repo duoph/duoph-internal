@@ -50,7 +50,7 @@ export function WorkTypesManager({ initial }: { initial: WorkTypeRow[] }) {
                 className="flex items-center justify-between gap-3 rounded-[10px] border border-(--color-border-subtle) px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-white">{w.label}</p>
+                  <p className="truncate text-sm font-medium text-[var(--color-text-primary)]">{w.label}</p>
                   <p className="truncate text-xs text-(--color-text-muted)">{w.key}</p>
                 </div>
                 <Button

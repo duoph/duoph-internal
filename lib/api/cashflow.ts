@@ -18,6 +18,7 @@ type CashflowDoc = {
   date: string;
   income: number;
   expense: number;
+  payment_status?: "received" | "pending";
   details: string | null;
   client_id: string | null;
   work_type: string;
@@ -30,6 +31,7 @@ function toRow(doc: CashflowDoc): CashflowRow {
     date: toDateOnly(doc.date)!,
     income: Number(doc.income),
     expense: Number(doc.expense),
+    payment_status: doc.payment_status ?? "received",
     details: doc.details,
     client_id: doc.client_id,
     work_type: doc.work_type as WorkType,

@@ -5,7 +5,6 @@ import { MongoClient, type Db } from "mongodb";
 const uri = process.env.MONGODB_URI;
 
 declare global {
-  // eslint-disable-next-line no-var
   var _mongoClient: MongoClient | undefined;
 }
 
@@ -19,6 +18,8 @@ export const COL = {
   cashflow: "cashflow",
   work_types: "work_types",
   work_items: "work_items",
+  tasks: "tasks",
+  task_activity: "task_activity",
   password_reset_tokens: "password_reset_tokens",
 } as const;
 
@@ -31,6 +32,10 @@ async function ensureIndexes(database: Db) {
     database.collection(COL.work_types).createIndex({ key: 1 }, { unique: true }),
     database.collection(COL.work_items).createIndex({ deleted_at: 1 }),
     database.collection(COL.work_items).createIndex({ client_id: 1 }),
+    database.collection(COL.tasks).createIndex({ deleted_at: 1, status: 1, due_date: 1 }),
+    database.collection(COL.tasks).createIndex({ assignee_ids: 1, deleted_at: 1 }),
+    database.collection(COL.tasks).createIndex({ created_by: 1, created_at: -1 }),
+    database.collection(COL.task_activity).createIndex({ task_id: 1, created_at: -1 }),
     database.collection(COL.clients).createIndex({ created_at: -1 }),
     database.collection(COL.cashflow).createIndex({ date: -1 }),
   ]);

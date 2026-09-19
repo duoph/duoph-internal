@@ -1,16 +1,16 @@
-import { getSession } from "@/lib/auth/session";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/authorization";
 import { AdminCreateUser } from "@/components/settings/admin-create-user";
 
 export default async function AdminUsersPage() {
-  const user = await getSession();
+  const user = await getCurrentUser();
 
-  if (!user || !isAdminEmail(user.email)) return null;
+  if (!user || user.role !== "admin") redirect("/dashboard");
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Users</h1>
+        <h1 className="page-title">Users</h1>
         <p className="text-sm text-(--color-text-secondary)">Create new users (no OTP)</p>
       </div>
       <AdminCreateUser />

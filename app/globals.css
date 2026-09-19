@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-bg-base: #0b0f19;
-  --color-bg-surface: #111827;
-  --color-bg-elevated: #1f2937;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #9ca3af;
-  --color-text-muted: #6b7280;
-  --color-border-subtle: rgba(255, 255, 255, 0.08);
-  --color-border-default: rgba(255, 255, 255, 0.12);
-  --radius-card: 16px;
+  --color-primary: #18704e;
+  --color-primary-hover: #125a3f;
+  --color-primary-soft: #eaf5f0;
+  --color-accent: #ec7357;
+  --color-accent-soft: #fff0eb;
+  --color-bg-base: #fafcfb;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-text-primary: #172033;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+  --color-border-subtle: #e9efec;
+  --color-border-default: #dce6e1;
+  --radius-card: 14px;
   --radius-control: 10px;
-  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 @theme inline {
@@ -23,13 +26,14 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
+  min-width: 320px;
 }
 
 @layer utilities {
@@ -62,5 +66,43 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+::selection {
+  background: #cde8dc;
+  color: #0d4a34;
+}
+
+@layer components {
+  .eyebrow {
+    margin-bottom: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+  }
+
+  .page-title {
+    font-size: clamp(1.65rem, 3vw, 2.2rem);
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    color: var(--color-text-primary);
+  }
+
+  .page-subtitle {
+    margin-top: 0.4rem;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+  }
+
+  .field-label {
+    margin-bottom: 0.35rem;
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
 }
 

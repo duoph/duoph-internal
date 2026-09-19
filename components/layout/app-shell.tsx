@@ -1,24 +1,57 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
-import type { TeamMemberRoster } from "@/lib/auth/team";
+import type { CurrentUser } from "@/lib/auth/authorization";
+import { cn } from "@/lib/utils/cn";
 
 export function AppShell({
   children,
-  teamMembers = [],
-  userEmail,
+  user,
 }: {
   children: React.ReactNode;
-  teamMembers?: TeamMemberRoster[];
-  userEmail?: string | null;
+  user: CurrentUser;
 }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const lockPageScroll = pathname === "/clients" || pathname.startsWith("/clients/");
+
   return (
-    <div className="flex min-h-screen">
-      <Sidebar teamMembers={teamMembers} userEmail={userEmail} />
-      <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center border-b border-(--color-border-subtle) bg-(--color-bg-surface) px-6">
-          <p className="text-sm text-(--color-text-secondary)">Operations</p>
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg-base)]">
+      <Sidebar
+        user={user}
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+      />
+      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-[var(--color-border-subtle)] bg-white/90 px-4 backdrop-blur-xl md:px-8">
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-default)] text-lg lg:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+          >
+            ☰
+          </button>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs font-semibold text-[var(--color-text-primary)]">{user.name}</p>
+              <p className="text-[11px] capitalize text-[var(--color-text-muted)]">{user.role}</p>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary-soft)] p-1.5">
+              <Image src="/duoph-icon.png" alt="" width={170} height={224} className="h-full w-full object-contain" />
+            </div>
+          </div>
         </header>
-        <main className="flex-1 p-4">
-          <div className="mx-auto max-w-[1400px]">{children}</div>
+        <main
+          className={cn(
+            "min-h-0 flex-1 p-5 md:p-8 lg:p-10",
+            lockPageScroll ? "overflow-hidden" : "overflow-y-auto",
+          )}
+        >
+          <div className={cn("mx-auto max-w-[1320px]", lockPageScroll && "h-full min-h-0")}>{children}</div>
         </main>
       </div>
     </div>

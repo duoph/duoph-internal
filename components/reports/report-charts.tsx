@@ -29,19 +29,19 @@ export function ReportCharts({
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-              <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="label" stroke="#64748b" fontSize={12} />
+              <YAxis stroke="#64748b" fontSize={12} />
               <Tooltip
                 contentStyle={{
-                  background: "#1f2937",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: 8,
                 }}
               />
               <Legend />
-              <Bar dataKey="income" fill="#22c55e" name="Income" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" fill="#ef4444" name="Expense" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" fill="#18704e" name="Income" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" fill="#ec7357" name="Expense" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -52,19 +52,19 @@ export function ReportCharts({
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weekly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-              <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="label" stroke="#64748b" fontSize={12} />
+              <YAxis stroke="#64748b" fontSize={12} />
               <Tooltip
                 contentStyle={{
-                  background: "#1f2937",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: 8,
                 }}
               />
               <Legend />
-              <Bar dataKey="income" fill="#2563eb" name="Income" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" fill="#f59e0b" name="Expense" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" fill="#18704e" name="Income" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" fill="#ec7357" name="Expense" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -79,17 +79,17 @@ export function ReportCharts({
               layout="vertical"
               margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-              <XAxis type="number" stroke="#9ca3af" fontSize={12} />
-              <YAxis type="category" dataKey="name" width={120} stroke="#9ca3af" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis type="number" stroke="#64748b" fontSize={12} />
+              <YAxis type="category" dataKey="name" width={120} stroke="#64748b" fontSize={12} />
               <Tooltip
                 contentStyle={{
-                  background: "#1f2937",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: 8,
                 }}
               />
-              <Bar dataKey="revenue" fill="#8b5cf6" name="Revenue" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="revenue" fill="#18704e" name="Revenue" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

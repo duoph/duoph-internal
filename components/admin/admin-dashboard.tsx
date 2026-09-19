@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils/cn";
 import { Card } from "@/components/ui/card";
 import { AdminCreateUser } from "@/components/settings/admin-create-user";
 import { WorkTypesManager } from "@/components/admin/work-types-manager";
+import { UsersManager, type ManagedUser } from "@/components/admin/users-manager";
 
 type Tab = "users" | "work_types";
 
-export function AdminDashboard({ workTypes }: { workTypes: WorkTypeRow[] }) {
+export function AdminDashboard({ workTypes, users }: { workTypes: WorkTypeRow[]; users: ManagedUser[] }) {
   const [tab, setTab] = useState<Tab>("users");
 
   const items = useMemo(
@@ -22,22 +23,19 @@ export function AdminDashboard({ workTypes }: { workTypes: WorkTypeRow[] }) {
   );
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-      <Card className="border-(--color-border-default) p-2">
-        <p className="px-3 pb-2 pt-2 text-xs font-medium uppercase tracking-wide text-(--color-text-muted)">
-          Admin
-        </p>
-        <div className="space-y-1">
+    <div className="space-y-5">
+      <Card className="inline-flex border-(--color-border-default) p-1 shadow-none">
+        <div className="flex gap-1">
           {items.map((i) => (
             <button
               key={i.id}
               type="button"
               onClick={() => setTab(i.id)}
               className={cn(
-                "w-full rounded-[10px] px-3 py-2 text-left text-sm font-medium transition-colors",
+                "rounded-[10px] px-4 py-2 text-sm font-medium transition-colors",
                 tab === i.id
-                  ? "bg-(--color-primary)/20 text-white ring-1 ring-(--color-primary)/40"
-                  : "text-(--color-text-secondary) hover:bg-white/5 hover:text-white",
+                  ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                  : "text-(--color-text-secondary) hover:bg-slate-50 hover:text-[var(--color-text-primary)]",
               )}
             >
               {i.label}
@@ -47,7 +45,12 @@ export function AdminDashboard({ workTypes }: { workTypes: WorkTypeRow[] }) {
       </Card>
 
       <div className="min-w-0">
-        {tab === "users" ? <AdminCreateUser /> : null}
+        {tab === "users" ? (
+          <div className="space-y-5">
+            <UsersManager users={users} />
+            <AdminCreateUser />
+          </div>
+        ) : null}
         {tab === "work_types" ? <WorkTypesManager initial={workTypes} /> : null}
       </div>
     </div>

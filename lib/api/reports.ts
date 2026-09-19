@@ -22,7 +22,7 @@ export const reportsService = {
       for (const r of rows) {
         const rd = parseISO(r.date);
         if (rd >= start && rd <= end) {
-          income += Number(r.income);
+          if (r.payment_status !== "pending") income += Number(r.income);
           expense += Number(r.expense);
         }
       }
@@ -44,7 +44,7 @@ export const reportsService = {
       for (const r of rows) {
         const rd = parseISO(r.date);
         if (rd >= start && rd <= end) {
-          income += Number(r.income);
+          if (r.payment_status !== "pending") income += Number(r.income);
           expense += Number(r.expense);
         }
       }
@@ -59,7 +59,7 @@ export const reportsService = {
       const id = r.client_id ?? "_none";
       const name = r.clients?.client_name ?? "No client";
       const prev = map.get(id) ?? { name, revenue: 0 };
-      prev.revenue += Number(r.income);
+      if (r.payment_status !== "pending") prev.revenue += Number(r.income);
       map.set(id, prev);
     }
     return [...map.values()].sort((a, b) => b.revenue - a.revenue);

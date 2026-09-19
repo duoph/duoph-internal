@@ -10,7 +10,7 @@ import {
   updateCashflowAction,
 } from "@/app/actions/cashflow";
 import { cashflowTotals } from "@/lib/utils/cashflow";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -33,6 +33,7 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
   const [to, setTo] = useState("");
   const [clientId, setClientId] = useState("");
   const [workType, setWorkType] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState("");
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<CashflowWithClient | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; summary: string } | null>(null);
@@ -49,9 +50,10 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
       if (to && r.date > to) return false;
       if (clientId && r.client_id !== clientId) return false;
       if (workType && r.work_type !== workType) return false;
+      if (paymentStatus && r.payment_status !== paymentStatus) return false;
       return true;
     });
-  }, [optimisticRows, from, to, clientId, workType]);
+  }, [optimisticRows, from, to, clientId, workType, paymentStatus]);
 
   const totals = cashflowTotals(filtered);
 
@@ -59,18 +61,23 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Cashflow</h1>
-          <p className="text-sm text-(--color-text-secondary)">Income, expenses, and balance</p>
+          <p className="eyebrow">Finance</p>
+          <h1 className="page-title">Cashflow</h1>
+          <p className="text-sm text-(--color-text-secondary)">Received income, expected payments, expenses, and balance</p>
         </div>
         <Button type="button" onClick={() => setModal("create")}>
           Add entry
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-xs uppercase text-(--color-text-muted)">Income</p>
-          <p className="mt-2 text-xl font-semibold text-emerald-400">{formatMoney(totals.income)}</p>
+          <p className="mt-2 text-xl font-semibold text-[var(--color-primary)]">{formatMoney(totals.income)}</p>
+        </Card>
+        <Card className="border-orange-100 bg-[var(--color-accent-soft)]">
+          <p className="text-xs uppercase text-(--color-text-muted)">Pending to receive</p>
+          <p className="mt-2 text-xl font-semibold text-[var(--color-accent)]">{formatMoney(totals.pending)}</p>
         </Card>
         <Card>
           <p className="text-xs uppercase text-(--color-text-muted)">Expense</p>
@@ -78,13 +85,18 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
         </Card>
         <Card>
           <p className="text-xs uppercase text-(--color-text-muted)">Balance</p>
-          <p className="mt-2 text-xl font-semibold text-white">{formatMoney(totals.balance)}</p>
+          <p className="mt-2 text-xl font-semibold text-[var(--color-text-primary)]">{formatMoney(totals.balance)}</p>
         </Card>
       </div>
 
       <Card>
-        <CardTitle className="mb-4">Filters</CardTitle>
-        <div className="mb-6 flex flex-wrap gap-3">
+        <details className="group mb-5">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-[var(--color-text-primary)]">
+            <span>Filters</span>
+            <span className="text-xs font-normal text-[var(--color-text-muted)] group-open:hidden">Show</span>
+            <span className="hidden text-xs font-normal text-[var(--color-text-muted)] group-open:inline">Hide</span>
+          </summary>
+        <div className="mt-4 flex flex-wrap gap-3 border-t border-[var(--color-border-subtle)] pt-4">
           <div>
             <label className="mb-1 block text-xs text-(--color-text-muted)">From</label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -115,7 +127,16 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
               ))}
             </Select>
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-(--color-text-muted)">Payment status</label>
+            <Select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+              <option value="">All</option>
+              <option value="received">Received</option>
+              <option value="pending">Pending to receive</option>
+            </Select>
+          </div>
         </div>
+        </details>
 
         <Table>
           <thead>
@@ -124,6 +145,7 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
               <Th>Client</Th>
               <Th>Type</Th>
               <Th>Details</Th>
+              <Th>Payment</Th>
               <Th className="text-right">Income</Th>
               <Th className="text-right">Expense</Th>
               <Th className="text-right">Actions</Th>
@@ -131,7 +153,7 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
           </thead>
           <tbody>
             {filtered.map((r) => (
-              <tr key={r.id} className="hover:bg-white/3">
+              <tr key={r.id} className="hover:bg-slate-50">
                 <Td>{formatDate(r.date)}</Td>
                 <Td>{r.clients?.client_name ?? "—"}</Td>
                 <Td>
@@ -140,7 +162,18 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
                   </Badge>
                 </Td>
                 <Td className="max-w-[200px] truncate">{r.details ?? "—"}</Td>
-                <Td className="text-right tabular-nums text-emerald-400">
+                <Td>
+                  <Badge
+                    className={
+                      r.payment_status === "pending"
+                        ? "border-orange-200 bg-orange-50 text-[var(--color-accent)]"
+                        : "border-emerald-200 bg-emerald-50 text-[var(--color-primary)]"
+                    }
+                  >
+                    {r.payment_status === "pending" ? "Pending" : "Received"}
+                  </Badge>
+                </Td>
+                <Td className="text-right tabular-nums text-[var(--color-primary)]">
                   {Number(r.income) ? formatMoney(Number(r.income)) : "—"}
                 </Td>
                 <Td className="text-right tabular-nums text-red-400">
@@ -268,6 +301,7 @@ function TxModal({
       date: String(fd.get("date")),
       income: Number(fd.get("income") || 0),
       expense: Number(fd.get("expense") || 0),
+      payment_status: String(fd.get("payment_status") ?? "received") as "received" | "pending",
       details: String(fd.get("details") ?? ""),
       client_id: client_id_raw ? client_id_raw : null,
         work_type: String(fd.get("work_type")),
@@ -313,6 +347,16 @@ function TxModal({
             <label className="mb-1 block text-xs text-(--color-text-secondary)">Expense</label>
             <Input name="expense" type="number" step="0.01" min="0" defaultValue={initial?.expense ?? 0} />
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-(--color-text-secondary)">Payment status</label>
+          <Select name="payment_status" defaultValue={initial?.payment_status ?? "received"}>
+            <option value="received">Received</option>
+            <option value="pending">Pending to receive</option>
+          </Select>
+          <p className="mt-1 text-[11px] text-(--color-text-muted)">
+            Pending income is excluded from the current balance until marked received.
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-xs text-(--color-text-secondary)">Details</label>

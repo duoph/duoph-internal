@@ -1,21 +1,21 @@
-import { getSession } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/authorization";
 import { profileService } from "@/lib/api/profile";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { AdminCreateUser } from "@/components/settings/admin-create-user";
-import { isAdminEmail } from "@/lib/auth/admin";
 
 export default async function SettingsPage() {
-  const user = await getSession();
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const profile = await profileService.get(user.id);
-  const isAdmin = isAdminEmail(user.email);
+  const isAdmin = user.role === "admin";
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
-        <p className="text-sm text-(--color-text-secondary)">Profile preferences</p>
+        <p className="eyebrow">Your account</p>
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Profile preferences and workspace access.</p>
       </div>
       <SettingsForm email={user.email ?? ""} initialName={profile?.admin_name ?? ""} />
       {isAdmin ? <AdminCreateUser /> : null}

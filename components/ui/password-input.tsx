@@ -23,7 +23,7 @@ export function PasswordInput({ id: idProp, className, autoComplete, ...props }:
       />
       <button
         type="button"
-        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-white/10 hover:text-white"
+        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md px-2 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-slate-100 hover:text-[var(--color-text-primary)]"
         onClick={() => setVisible((v) => !v)}
         aria-label={visible ? "Hide password" : "Show password"}
       >

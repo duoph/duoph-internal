@@ -36,10 +36,11 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
   }, [initialClients, filterType, filterCountry]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Clients</h1>
+          <p className="eyebrow">Relationships</p>
+          <h1 className="page-title">Clients</h1>
           <p className="text-sm text-(--color-text-secondary)">Manage relationships and work types</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -55,8 +56,8 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
         </div>
       </div>
 
-      <Card>
-        <div className="mb-4 flex flex-wrap gap-3">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 shadow-none">
+        <div className="flex shrink-0 flex-wrap items-end gap-3 border-b border-[var(--color-border-subtle)] p-4">
           <div className="min-w-[140px] flex-1">
             <label className="mb-1 block text-xs text-(--color-text-muted)">Work type</label>
             <Select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
@@ -72,26 +73,29 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
             <label className="mb-1 block text-xs text-(--color-text-muted)">Country</label>
             <Input value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} placeholder="Filter" />
           </div>
+          <p className="pb-2 text-xs text-[var(--color-text-muted)]">
+            {filtered.length} {filtered.length === 1 ? "client" : "clients"}
+          </p>
         </div>
 
         {view === "table" ? (
-          <Table>
-            <thead>
+          <Table className="min-h-0 flex-1 overflow-auto rounded-none border-0">
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_var(--color-border-subtle)]">
               <tr>
-                <Th>Name</Th>
+                <Th className="sticky left-0 z-20 min-w-52 bg-white">Name</Th>
                 <Th>Email</Th>
                 <Th>Phone</Th>
                 <Th>Country</Th>
                 <Th>Type</Th>
                 <Th>Admin</Th>
                 <Th>Created</Th>
-                <Th className="text-right">Actions</Th>
+                <Th className="sticky right-0 z-20 bg-white text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-white/3">
-                  <Td className="font-medium">{c.client_name}</Td>
+                <tr key={c.id} className="hover:bg-slate-50">
+                  <Td className="sticky left-0 bg-white font-medium">{c.client_name}</Td>
                   <Td>{c.email?.trim() ? c.email : "—"}</Td>
                   <Td>{c.contact_number?.trim() ? c.contact_number : "—"}</Td>
                   <Td>{c.country || "—"}</Td>
@@ -102,7 +106,7 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
                   </Td>
                   <Td>{c.admin_name ?? "—"}</Td>
                   <Td>{formatDate(c.created_at)}</Td>
-                  <Td className="text-right">
+                  <Td className="sticky right-0 bg-white text-right">
                     <Button
                       type="button"
                       variant="ghost"
@@ -128,7 +132,7 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
             </tbody>
           </Table>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((c) => (
               <Card key={c.id} className="border-(--color-border-default)">
                 <div className="flex items-start justify-between gap-2">

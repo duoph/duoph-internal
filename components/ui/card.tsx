@@ -19,5 +19,5 @@ export function Card({
 }
 
 export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={cn("text-lg font-semibold text-white", className)}>{children}</h3>;
+  return <h3 className={cn("text-lg font-semibold text-[var(--color-text-primary)]", className)}>{children}</h3>;
 }

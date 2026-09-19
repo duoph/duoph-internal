@@ -29,10 +29,10 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
         aria-label="Close dialog"
         onClick={onClose}
       />
@@ -41,12 +41,12 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-elevated)] p-6 shadow-[var(--shadow-card)]",
+          "relative z-10 my-auto max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-elevated)] p-6 shadow-2xl",
           className,
         )}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h2 id="modal-title" className="text-lg font-semibold text-white">
+          <h2 id="modal-title" className="text-lg font-semibold text-[var(--color-text-primary)]">
             {title}
           </h2>
           <Button type="button" variant="ghost" className="shrink-0 px-2 py-1" onClick={onClose}>

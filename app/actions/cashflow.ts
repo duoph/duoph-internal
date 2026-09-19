@@ -9,6 +9,7 @@ export async function createCashflowAction(input: {
   date: string;
   income: number;
   expense: number;
+  payment_status: "received" | "pending";
   details: string;
   client_id: string | null;
   work_type: WorkType;
@@ -20,6 +21,7 @@ export async function createCashflowAction(input: {
       date: input.date,
       income: input.income,
       expense: input.expense,
+      payment_status: input.expense > 0 ? "received" : input.payment_status,
       details: input.details || null,
       client_id: input.client_id,
       work_type: input.work_type,
@@ -40,6 +42,7 @@ export async function updateCashflowAction(
     date: string;
     income: number;
     expense: number;
+    payment_status: "received" | "pending";
     details: string;
     client_id: string | null;
     work_type: WorkType;
@@ -48,7 +51,10 @@ export async function updateCashflowAction(
   const user = await getSession();
   if (!user) return { error: "Unauthorized" };
   try {
-    await cashflowService.update(id, input);
+    await cashflowService.update(id, {
+      ...input,
+      ...(input.expense !== undefined && input.expense > 0 ? { payment_status: "received" as const } : {}),
+    });
     revalidatePath("/cashflow");
     revalidatePath("/dashboard");
     revalidatePath("/reports");

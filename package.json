@@ -9,7 +9,8 @@
     "lint": "eslint",
     "reset-users": "node --env-file=.env.local scripts/reset-users.mjs",
     "seed-admin": "node --env-file=.env.local scripts/seed-admin.mjs",
-    "test-mongo": "node --env-file=.env.local scripts/test-mongo.mjs"
+    "test-mongo": "node --env-file=.env.local scripts/test-mongo.mjs",
+    "migrate-data": "node --env-file=.env scripts/migrate-data.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -7,9 +7,9 @@ const variants: Record<Variant, string> = {
   primary:
     "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] border border-transparent",
   secondary:
-    "bg-transparent text-white border border-[var(--color-border-default)] hover:bg-white/5",
+    "bg-white text-[var(--color-text-primary)] border border-[var(--color-border-default)] hover:bg-slate-50",
   danger: "bg-red-600 text-white hover:bg-red-700 border border-transparent",
-  ghost: "bg-transparent text-[var(--color-text-secondary)] hover:bg-white/5 border border-transparent",
+  ghost: "bg-transparent text-[var(--color-text-secondary)] hover:bg-slate-100 border border-transparent",
 };
 
 export function Button({

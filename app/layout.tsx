@@ -10,8 +10,11 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "DCRM",
-  description: "Production CRM",
+  title: {
+    default: "Duoph Operations",
+    template: "%s · Duoph Operations",
+  },
+  description: "Internal operations, task management, and analytics for Duoph.",
 };
 
 export default function RootLayout({
