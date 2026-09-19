@@ -37,6 +37,10 @@ export function canManageTasks(user: CurrentUser) {
 }
 
 export function canViewTeamAnalytics(user: CurrentUser) {
+  return Boolean(user);
+}
+
+export function canManageFinance(user: CurrentUser) {
   return user.role === "admin" || user.role === "manager";
 }
 

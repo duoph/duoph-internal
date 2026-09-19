@@ -2,60 +2,62 @@ import "server-only";
 
 import { endOfWeek, format, startOfWeek, subWeeks } from "date-fns";
 import { taskService } from "@/lib/api/tasks";
+import { taskScoreService } from "@/lib/api/task-scores";
+import type { TaskScoreDoc } from "@/lib/api/task-scores";
 
 export type TaskAnalyticsAccess = {
   viewerId: string;
   canViewAll: boolean;
 };
 
-function isOverdue(dueDate: string | null, status: string) {
-  if (!dueDate || status === "completed" || status === "cancelled") return false;
-  return dueDate < new Date().toISOString().slice(0, 10);
+function toMember(doc: TaskScoreDoc) {
+  return {
+    id: doc.user_id,
+    name: doc.name,
+    email: doc.email,
+    total: doc.total,
+    completed: doc.completed,
+    active: doc.active,
+    overdue: doc.overdue,
+    missed: doc.missed,
+    onTime: doc.on_time,
+    dueCompleted: doc.due_completed,
+    completedLate: doc.completed_late,
+    todo: doc.todo,
+    inProgress: doc.in_progress,
+    inReview: doc.in_review,
+    completed7d: doc.completed_7d,
+    completed30d: doc.completed_30d,
+    averageCompletionHours: doc.average_completion_hours,
+    averageLatenessHours: doc.average_lateness_hours,
+    averageTaskPoints: doc.average_task_points,
+    completionRate: doc.completion_rate,
+    onTimeRate: doc.on_time_rate,
+    reliability: doc.reliability,
+    score: doc.score,
+    rank: doc.rank,
+  };
 }
 
 export const taskAnalyticsService = {
   async get(access: TaskAnalyticsAccess) {
-    const tasks = await taskService.list(access);
+    const [tasks, scoreDocs] = await Promise.all([
+      taskService.list(access),
+      taskScoreService.list(),
+    ]);
     const relevant = tasks.filter((task) => task.status !== "cancelled");
     const completed = relevant.filter((task) => task.status === "completed");
     const missed = relevant.filter((task) => Boolean(task.first_missed_at));
-    const overdue = relevant.filter((task) => isOverdue(task.due_date, task.status));
+    const overdue = relevant.filter((task) => task.deadline_outcome === "open_overdue");
+    const lateCompletions = relevant
+      .filter((task) => task.completed_late)
+      .sort((a, b) => (b.days_late ?? 0) - (a.days_late ?? 0));
     const active = relevant.filter((task) => task.status !== "completed");
-
-    const members = new Map<
-      string,
-      {
-        id: string;
-        name: string;
-        email: string;
-        total: number;
-        completed: number;
-        active: number;
-        overdue: number;
-        missed: number;
-      }
-    >();
-
-    for (const task of relevant) {
-      for (const assignee of task.assignees) {
-        const row = members.get(assignee.id) ?? {
-          ...assignee,
-          total: 0,
-          completed: 0,
-          active: 0,
-          overdue: 0,
-          missed: 0,
-        };
-        row.total += 1;
-        if (task.status === "completed") row.completed += 1;
-        else row.active += 1;
-        if (isOverdue(task.due_date, task.status)) row.overdue += 1;
-        if (task.first_missed_at) row.missed += 1;
-        members.set(assignee.id, row);
-      }
-    }
-
     const now = new Date();
+
+    const members = (access.canViewAll ? scoreDocs : scoreDocs.filter((doc) => doc.user_id === access.viewerId))
+      .map(toMember);
+
     const completionTrend = Array.from({ length: 8 }, (_, index) => {
       const anchor = subWeeks(now, 7 - index);
       const start = startOfWeek(anchor, { weekStartsOn: 1 });
@@ -75,6 +77,10 @@ export const taskAnalyticsService = {
       { status: "Completed", value: completed.length },
     ];
 
+    const scoredMembers = members.filter((member) => member.total > 0);
+    const dueCompleted = completed.filter((task) => Boolean(task.due_date)).length;
+    const onTime = completed.filter((task) => task.deadline_outcome === "on_time").length;
+
     return {
       summary: {
         total: relevant.length,
@@ -83,14 +89,31 @@ export const taskAnalyticsService = {
         overdue: overdue.length,
         missed: missed.length,
         completionRate: relevant.length ? Math.round((completed.length / relevant.length) * 100) : 0,
+        onTime,
+        completedLate: lateCompletions.length,
+        onTimeRate: dueCompleted
+          ? Math.round((onTime / dueCompleted) * 100)
+          : 0,
+        averageScore: scoredMembers.length
+          ? Math.round(scoredMembers.reduce((sum, member) => sum + member.score, 0) / scoredMembers.length)
+          : 0,
       },
       completionTrend,
       byStatus,
-      members: [...members.values()].sort((a, b) => b.missed - a.missed || b.total - a.total),
+      members,
+      topPerformer: members.find((member) => member.score > 0) ?? null,
       attention: overdue
         .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""))
         .slice(0, 8),
+      lateCompletions: lateCompletions.slice(0, 8).map((task) => ({
+        id: task.id,
+        title: task.title,
+        due_date: task.due_date,
+        completed_at: task.completed_at,
+        days_late: task.days_late,
+        score_points: task.score_points,
+        assignees: task.assignees,
+      })),
     };
   },
 };
-

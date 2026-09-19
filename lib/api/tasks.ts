@@ -6,11 +6,15 @@ import { toDateOnly, toId, toIso } from "@/lib/db/serialize";
 import { clientService } from "@/lib/api/clients";
 import { listAllUsers } from "@/lib/auth/users";
 import type {
+  DeadlineOutcome,
   TaskPriority,
+  TaskActivityRow,
   TaskRow,
   TaskStatus,
   TaskWithRelations,
 } from "@/lib/types/database";
+import { computeDeadlineRecord } from "@/lib/utils/task-deadline";
+import { taskScoreService } from "@/lib/api/task-scores";
 
 type TaskDoc = {
   _id: ObjectId;
@@ -24,6 +28,11 @@ type TaskDoc = {
   due_date: string | null;
   completed_at: Date | null;
   first_missed_at: Date | null;
+  deadline_outcome?: DeadlineOutcome;
+  completed_late?: boolean;
+  days_late?: number | null;
+  lateness_hours?: number | null;
+  score_points?: number | null;
   tags: string[];
   deleted_at: Date | null;
   created_at: Date;
@@ -51,11 +60,32 @@ export type TaskInput = {
   tags: string[];
 };
 
-function deadlineFor(dueDate: string) {
-  return new Date(`${dueDate}T23:59:59.999Z`);
+function deadlineFields(input: {
+  due_date: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  completed_at: Date | null;
+  first_missed_at: Date | null;
+}, now = new Date()) {
+  const record = computeDeadlineRecord(input, now);
+  return {
+    first_missed_at: input.first_missed_at ?? record.first_missed_at,
+    deadline_outcome: record.deadline_outcome,
+    completed_late: record.completed_late,
+    days_late: record.days_late,
+    lateness_hours: record.lateness_hours,
+    score_points: record.score_points,
+  };
 }
 
 function toRow(doc: TaskDoc): TaskRow {
+  const record = deadlineFields({
+    due_date: toDateOnly(doc.due_date),
+    status: doc.status,
+    priority: doc.priority,
+    completed_at: doc.completed_at,
+    first_missed_at: doc.first_missed_at,
+  });
   return {
     id: toId(doc._id),
     title: doc.title,
@@ -67,7 +97,12 @@ function toRow(doc: TaskDoc): TaskRow {
     created_by: doc.created_by,
     due_date: toDateOnly(doc.due_date),
     completed_at: toIso(doc.completed_at),
-    first_missed_at: toIso(doc.first_missed_at),
+    first_missed_at: toIso(doc.first_missed_at ?? record.first_missed_at),
+    deadline_outcome: doc.deadline_outcome ?? record.deadline_outcome,
+    completed_late: doc.completed_late ?? record.completed_late,
+    days_late: doc.days_late ?? record.days_late,
+    lateness_hours: doc.lateness_hours ?? record.lateness_hours,
+    score_points: doc.score_points ?? record.score_points,
     tags: doc.tags,
     deleted_at: toIso(doc.deleted_at),
     created_at: toIso(doc.created_at)!,
@@ -120,29 +155,45 @@ async function recordActivity(taskId: string, actorId: string, action: string, d
 export const taskService = {
   async reconcileMissedDeadlines() {
     const db = await getDb();
-    const today = new Date().toISOString().slice(0, 10);
-    const candidates = await db
+    const now = new Date();
+    const tasks = await db
       .collection<TaskDoc>(COL.tasks)
-      .find({
-        deleted_at: null,
-        first_missed_at: null,
-        due_date: { $ne: null, $lt: today },
-        status: { $nin: ["cancelled"] },
-      })
+      .find({ deleted_at: null, status: { $ne: "cancelled" } })
       .toArray();
 
-    const missed = candidates.filter(
-      (task) =>
-        task.status !== "completed" ||
-        !task.completed_at ||
-        task.completed_at > deadlineFor(task.due_date!),
-    );
-    if (missed.length) {
-      await db.collection<TaskDoc>(COL.tasks).updateMany(
-        { _id: { $in: missed.map((task) => task._id) } },
-        { $set: { first_missed_at: new Date() } },
+    const writes = tasks.flatMap((task) => {
+      const next = deadlineFields(
+        {
+          due_date: task.due_date,
+          status: task.status,
+          priority: task.priority,
+          completed_at: task.completed_at,
+          first_missed_at: task.first_missed_at,
+        },
+        now,
       );
+      const unchanged =
+        toIso(task.first_missed_at) === toIso(next.first_missed_at) &&
+        task.deadline_outcome === next.deadline_outcome &&
+        Boolean(task.completed_late) === next.completed_late &&
+        task.days_late === next.days_late &&
+        task.lateness_hours === next.lateness_hours &&
+        task.score_points === next.score_points;
+      if (unchanged) return [];
+      return [
+        {
+          updateOne: {
+            filter: { _id: task._id },
+            update: { $set: next },
+          },
+        },
+      ];
+    });
+
+    if (writes.length) {
+      await db.collection<TaskDoc>(COL.tasks).bulkWrite(writes);
     }
+    await taskScoreService.recompute();
   },
 
   async list(params: TaskListParams): Promise<TaskWithRelations[]> {
@@ -179,19 +230,34 @@ export const taskService = {
     const db = await getDb();
     const now = new Date();
     const completedAt = input.status === "completed" ? now : null;
-    const firstMissedAt =
-      input.due_date && input.status !== "cancelled" && now > deadlineFor(input.due_date) ? now : null;
+    const deadline = deadlineFields({
+      due_date: input.due_date,
+      status: input.status,
+      priority: input.priority,
+      completed_at: completedAt,
+      first_missed_at: null,
+    }, now);
     const doc = {
       ...input,
       created_by: actorId,
       completed_at: completedAt,
-      first_missed_at: firstMissedAt,
+      ...deadline,
       deleted_at: null,
       created_at: now,
       updated_at: now,
     };
     const result = await db.collection(COL.tasks).insertOne(doc);
-    await recordActivity(result.insertedId.toString(), actorId, "created");
+    await recordActivity(result.insertedId.toString(), actorId, "created", {
+      status: input.status,
+      priority: input.priority,
+      assigneeIds: input.assignee_ids,
+      dueDate: input.due_date,
+      completedLate: deadline.completed_late,
+      deadlineOutcome: deadline.deadline_outcome,
+      daysLate: deadline.days_late,
+      scorePoints: deadline.score_points,
+    });
+    await taskScoreService.recompute();
     return result.insertedId.toString();
   },
 
@@ -204,13 +270,23 @@ export const taskService = {
     const now = new Date();
     const nextStatus = input.status ?? current.status;
     const nextDueDate = input.due_date !== undefined ? input.due_date : current.due_date;
+    const nextPriority = input.priority ?? current.priority;
     const completedAt =
       nextStatus === "completed"
         ? current.completed_at ?? now
-        : null;
-    const firstMissedAt =
-      current.first_missed_at ??
-      (nextDueDate && nextStatus !== "cancelled" && now > deadlineFor(nextDueDate) ? now : null);
+        : current.completed_at;
+    const deadline = deadlineFields({
+      due_date: nextDueDate,
+      status: nextStatus,
+      priority: nextPriority,
+      completed_at: completedAt,
+      first_missed_at: current.first_missed_at,
+    }, now);
+    const changedFields = Object.keys(input).filter((key) => {
+      const previous = current[key as keyof TaskDoc];
+      const next = input[key as keyof TaskInput];
+      return JSON.stringify(previous) !== JSON.stringify(next);
+    });
 
     await db.collection<TaskDoc>(COL.tasks).updateOne(
       { _id: current._id },
@@ -218,15 +294,63 @@ export const taskService = {
         $set: {
           ...input,
           completed_at: completedAt,
-          first_missed_at: firstMissedAt,
+          ...deadline,
           updated_at: now,
         },
       },
     );
     await recordActivity(id, actorId, "updated", {
+      changedFields,
       previousStatus: current.status,
       status: nextStatus,
+      previousAssigneeIds: current.assignee_ids,
+      assigneeIds: input.assignee_ids ?? current.assignee_ids,
+      previousDueDate: current.due_date,
+      dueDate: nextDueDate,
+      priority: nextPriority,
+      completedLate: deadline.completed_late,
+      deadlineOutcome: deadline.deadline_outcome,
+      daysLate: deadline.days_late,
+      scorePoints: deadline.score_points,
     });
+    await taskScoreService.recompute();
+  },
+
+  async activity(taskId: string): Promise<TaskActivityRow[]> {
+    const db = await getDb();
+    const [events, users] = await Promise.all([
+      db
+        .collection<{
+          _id: ObjectId;
+          task_id: string;
+          actor_id: string;
+          action: TaskActivityRow["action"];
+          details: TaskActivityRow["details"];
+          created_at: Date;
+        }>(COL.task_activity)
+        .find({ task_id: taskId })
+        .sort({ created_at: -1 })
+        .toArray(),
+      listAllUsers(),
+    ]);
+    const userMap = new Map(
+      users.map((user) => [
+        user._id.toString(),
+        {
+          id: user._id.toString(),
+          name: user.admin_name.trim() || user.email.split("@")[0] || "User",
+        },
+      ]),
+    );
+    return events.map((event) => ({
+      id: event._id.toString(),
+      task_id: event.task_id,
+      actor_id: event.actor_id,
+      actor: userMap.get(event.actor_id) ?? null,
+      action: event.action,
+      details: event.details ?? {},
+      created_at: event.created_at.toISOString(),
+    }));
   },
 
   async softDelete(id: string, actorId: string) {
@@ -236,6 +360,7 @@ export const taskService = {
       .collection<TaskDoc>(COL.tasks)
       .updateOne({ _id: new ObjectId(id) }, { $set: { deleted_at: new Date(), updated_at: new Date() } });
     await recordActivity(id, actorId, "deleted");
+    await taskScoreService.recompute();
   },
 };
 

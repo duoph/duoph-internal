@@ -1,9 +1,14 @@
+import { redirect } from "next/navigation";
 import { cashflowService } from "@/lib/api/cashflow";
 import { clientService } from "@/lib/api/clients";
 import { workTypeService } from "@/lib/api/work-types";
 import { CashflowView } from "@/components/cashflow/cashflow-view";
+import { canManageFinance, getCurrentUser } from "@/lib/auth/authorization";
 
 export default async function CashflowPage() {
+  const user = await getCurrentUser();
+  if (!user || !canManageFinance(user)) redirect("/dashboard");
+
   const [rows, clients, workTypes] = await Promise.all([
     cashflowService.list(),
     clientService.list(),

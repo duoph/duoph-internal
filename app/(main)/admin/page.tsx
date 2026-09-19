@@ -20,11 +20,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">Workspace control</p>
-        <h1 className="page-title">Administration</h1>
-        <p className="page-subtitle">Manage people, permissions, and work categories.</p>
-      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">Manage people, permissions, and work categories.</p>
       <AdminDashboard workTypes={workTypes} users={users} />
     </div>
   );

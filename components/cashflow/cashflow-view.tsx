@@ -12,11 +12,13 @@ import {
 import { cashflowTotals } from "@/lib/utils/cashflow";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeaderActions } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, Th, Td } from "@/components/ui/table";
+import { RowActions } from "@/components/ui/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { workTypeBadgeClass } from "@/lib/utils/work-type";
 import { formatDate, formatMoney } from "@/lib/utils/format";
@@ -59,16 +61,11 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Finance</p>
-          <h1 className="page-title">Cashflow</h1>
-          <p className="text-sm text-(--color-text-secondary)">Received income, expected payments, expenses, and balance</p>
-        </div>
-        <Button type="button" onClick={() => setModal("create")}>
+      <PageHeaderActions>
+        <Button type="button" className="h-9 px-3.5 py-0 text-xs" onClick={() => setModal("create")}>
           Add entry
         </Button>
-      </div>
+      </PageHeaderActions>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -148,12 +145,19 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
               <Th>Payment</Th>
               <Th className="text-right">Income</Th>
               <Th className="text-right">Expense</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="w-12 pr-3"><span className="sr-only">Actions</span></Th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((r) => (
-              <tr key={r.id} className="hover:bg-slate-50">
+              <tr
+                key={r.id}
+                className="cursor-pointer hover:bg-slate-50"
+                onClick={() => {
+                  setEditing(r);
+                  setModal("edit");
+                }}
+              >
                 <Td>{formatDate(r.date)}</Td>
                 <Td>{r.clients?.client_name ?? "—"}</Td>
                 <Td>
@@ -180,22 +184,12 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
                   {Number(r.expense) ? formatMoney(Number(r.expense)) : "—"}
                 </Td>
                 <Td className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="px-2 py-1"
-                    onClick={() => {
+                  <RowActions
+                    onEdit={() => {
                       setEditing(r);
                       setModal("edit");
                     }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    className="ml-2 px-2 py-1"
-                    onClick={() =>
+                    onDelete={() =>
                       setDeleteTarget({
                         id: r.id,
                         summary: [
@@ -209,9 +203,7 @@ export function CashflowView({ initialRows, clients, workTypes }: Props) {
                           .join(" "),
                       })
                     }
-                  >
-                    Delete
-                  </Button>
+                  />
                 </Td>
               </tr>
             ))}

@@ -9,10 +9,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <div>
-        <h1 className="page-title">Users</h1>
-        <p className="text-sm text-(--color-text-secondary)">Create new users (no OTP)</p>
-      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">Create new users (no OTP)</p>
       <AdminCreateUser />
     </div>
   );

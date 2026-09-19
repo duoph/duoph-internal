@@ -7,18 +7,25 @@ import type { ClientRow, WorkTypeRow } from "@/lib/types/database";
 import { createClientAction, deleteClientAction, updateClientAction } from "@/app/actions/clients";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeaderActions } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, Th, Td } from "@/components/ui/table";
+import { RowActions } from "@/components/ui/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { workTypeBadgeClass } from "@/lib/utils/work-type";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, formatMoney } from "@/lib/utils/format";
 
-type Props = { initialClients: ClientRow[]; profileName: string; workTypes: WorkTypeRow[] };
+type Props = {
+  initialClients: ClientRow[];
+  profileName: string;
+  workTypes: WorkTypeRow[];
+  canViewFinance: boolean;
+};
 
-export function ClientsView({ initialClients, profileName, workTypes }: Props) {
+export function ClientsView({ initialClients, profileName, workTypes, canViewFinance }: Props) {
   const router = useRouter();
   const [view, setView] = useState<"table" | "cards">("table");
   const [filterType, setFilterType] = useState<string>("");
@@ -37,24 +44,17 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Relationships</p>
-          <h1 className="page-title">Clients</h1>
-          <p className="text-sm text-(--color-text-secondary)">Manage relationships and work types</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant={view === "table" ? "primary" : "secondary"} onClick={() => setView("table")}>
-            Table
-          </Button>
-          <Button type="button" variant={view === "cards" ? "primary" : "secondary"} onClick={() => setView("cards")}>
-            Cards
-          </Button>
-          <Button type="button" onClick={() => setModal("create")}>
-            Add client
-          </Button>
-        </div>
-      </div>
+      <PageHeaderActions>
+        <Button type="button" className="h-9 px-3 py-0 text-xs" variant={view === "table" ? "primary" : "secondary"} onClick={() => setView("table")}>
+          Table
+        </Button>
+        <Button type="button" className="h-9 px-3 py-0 text-xs" variant={view === "cards" ? "primary" : "secondary"} onClick={() => setView("cards")}>
+          Cards
+        </Button>
+        <Button type="button" className="h-9 px-3.5 py-0 text-xs" onClick={() => setModal("create")}>
+          Add client
+        </Button>
+      </PageHeaderActions>
 
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 shadow-none">
         <div className="flex shrink-0 flex-wrap items-end gap-3 border-b border-[var(--color-border-subtle)] p-4">
@@ -87,15 +87,23 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
                 <Th>Phone</Th>
                 <Th>Country</Th>
                 <Th>Type</Th>
+                {canViewFinance ? <Th className="text-right">Project value</Th> : null}
                 <Th>Admin</Th>
                 <Th>Created</Th>
-                <Th className="sticky right-0 z-20 bg-white text-right">Actions</Th>
+                <Th className="sticky right-0 z-20 w-12 bg-white pr-3"><span className="sr-only">Actions</span></Th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <Td className="sticky left-0 bg-white font-medium">{c.client_name}</Td>
+                <tr
+                  key={c.id}
+                  className="group cursor-pointer hover:bg-slate-50"
+                  onClick={() => {
+                    setEditing(c);
+                    setModal("edit");
+                  }}
+                >
+                  <Td className="sticky left-0 bg-white font-medium group-hover:bg-slate-50">{c.client_name}</Td>
                   <Td>{c.email?.trim() ? c.email : "—"}</Td>
                   <Td>{c.contact_number?.trim() ? c.contact_number : "—"}</Td>
                   <Td>{c.country || "—"}</Td>
@@ -104,28 +112,17 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
                       {workTypes.find((w) => w.key === c.work_type)?.label ?? c.work_type}
                     </Badge>
                   </Td>
+                  {canViewFinance ? <Td className="text-right font-medium">{formatMoney(c.project_value)}</Td> : null}
                   <Td>{c.admin_name ?? "—"}</Td>
                   <Td>{formatDate(c.created_at)}</Td>
-                  <Td className="sticky right-0 bg-white text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="px-2 py-1"
-                      onClick={() => {
+                  <Td className="sticky right-0 bg-white text-right group-hover:bg-slate-50">
+                    <RowActions
+                      onEdit={() => {
                         setEditing(c);
                         setModal("edit");
                       }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      className="ml-2 px-2 py-1"
-                      onClick={() => setDeleteTarget(c)}
-                    >
-                      Delete
-                    </Button>
+                      onDelete={() => setDeleteTarget(c)}
+                    />
                   </Td>
                 </tr>
               ))}
@@ -134,34 +131,35 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
         ) : (
           <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((c) => (
-              <Card key={c.id} className="border-(--color-border-default)">
+              <Card
+                key={c.id}
+                className="cursor-pointer border-(--color-border-default)"
+                onClick={() => {
+                  setEditing(c);
+                  setModal("edit");
+                }}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base">{c.client_name}</CardTitle>
-                  <Badge className={workTypeBadgeClass(c.work_type)}>
-                    {workTypes.find((w) => w.key === c.work_type)?.label ?? c.work_type}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge className={workTypeBadgeClass(c.work_type)}>
+                      {workTypes.find((w) => w.key === c.work_type)?.label ?? c.work_type}
+                    </Badge>
+                    <RowActions
+                      onEdit={() => {
+                        setEditing(c);
+                        setModal("edit");
+                      }}
+                      onDelete={() => setDeleteTarget(c)}
+                    />
+                  </div>
                 </div>
                 <p className="mt-2 text-sm text-(--color-text-secondary)">{c.email?.trim() ? c.email : "—"}</p>
                 <p className="text-sm text-(--color-text-secondary)">
                   {c.contact_number?.trim() ? c.contact_number : "—"}
                 </p>
                 <p className="text-xs text-(--color-text-muted)">{c.country || "—"}</p>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => {
-                      setEditing(c);
-                      setModal("edit");
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button type="button" variant="danger" onClick={() => setDeleteTarget(c)}>
-                    Delete
-                  </Button>
-                </div>
+                {canViewFinance ? <p className="mt-2 text-sm font-semibold text-[var(--color-primary)]">{formatMoney(c.project_value)}</p> : null}
               </Card>
             ))}
           </div>
@@ -173,6 +171,7 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
         title="New client"
         profileName={profileName}
         workTypes={workTypes}
+        canViewFinance={canViewFinance}
         onClose={() => setModal(null)}
         onSaved={async () => {
           setModal(null);
@@ -184,6 +183,7 @@ export function ClientsView({ initialClients, profileName, workTypes }: Props) {
         title="Edit client"
         profileName={profileName}
         workTypes={workTypes}
+        canViewFinance={canViewFinance}
         initial={editing ?? undefined}
         onClose={() => {
           setModal(null);
@@ -227,6 +227,7 @@ function ClientModal({
   title,
   profileName,
   workTypes,
+  canViewFinance,
   initial,
   onClose,
   onSaved,
@@ -235,6 +236,7 @@ function ClientModal({
   title: string;
   profileName: string;
   workTypes: WorkTypeRow[];
+  canViewFinance: boolean;
   initial?: ClientRow;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
@@ -251,24 +253,30 @@ function ClientModal({
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const payload = {
+    const basePayload = {
       client_name: String(fd.get("client_name")),
       email: String(fd.get("email") ?? "").trim(),
       contact_number: normalizePhone(String(fd.get("contact_number") ?? "")),
       country: String(fd.get("country")),
-        work_type: String(fd.get("work_type")),
+      work_type: String(fd.get("work_type")),
       admin_name: String(fd.get("admin_name")),
     };
     startTransition(async () => {
       if (initial) {
-        const res = await updateClientAction(initial.id, payload);
+        const res = await updateClientAction(initial.id, {
+          ...basePayload,
+          ...(fd.has("project_value") ? { project_value: Number(fd.get("project_value") || 0) } : {}),
+        });
         if ("error" in res && res.error) {
           toast.error(res.error);
           return;
         }
         toast.success("Client updated");
       } else {
-        const res = await createClientAction(payload);
+        const res = await createClientAction({
+          ...basePayload,
+          project_value: Number(fd.get("project_value") || 0),
+        });
         if ("error" in res && res.error) {
           toast.error(res.error);
           return;
@@ -317,6 +325,24 @@ function ClientModal({
             ))}
           </Select>
         </div>
+        {!initial || canViewFinance ? (
+          <div>
+            <label className="mb-1 block text-xs text-(--color-text-secondary)">Project price</label>
+            <Input
+              name="project_value"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={initial?.project_value ?? 0}
+              required={!initial}
+            />
+            {!canViewFinance ? (
+              <p className="mt-1 text-xs text-(--color-text-muted)">
+                Managers can view this value after the client is created.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div>
           <label className="mb-1 block text-xs text-(--color-text-secondary)">Admin name</label>
           <Input name="admin_name" defaultValue={initial?.admin_name ?? profileName} />

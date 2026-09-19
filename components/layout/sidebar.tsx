@@ -17,8 +17,8 @@ const primaryItems = [
 const businessItems = [
   { href: "/clients", label: "Clients", icon: "◫" },
   { href: "/work", label: "Work", icon: "◇" },
-  { href: "/cashflow", label: "Cashflow", icon: "$" },
-  { href: "/reports", label: "Reports", icon: "▥" },
+  { href: "/cashflow", label: "Cashflow", icon: "$", finance: true },
+  { href: "/reports", label: "Reports", icon: "▥", finance: true },
 ];
 
 export function Sidebar({
@@ -47,7 +47,7 @@ export function Sidebar({
         "fixed inset-y-0 left-0 z-40 flex w-[232px] shrink-0 flex-col border-r border-[var(--color-border-subtle)] bg-white text-[var(--color-text-primary)] shadow-xl shadow-emerald-950/5 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none",
         mobileOpen ? "translate-x-0" : "-translate-x-full",
       )}>
-      <div className="flex h-16 items-center justify-between border-b border-[var(--color-border-subtle)] px-5">
+      <div className="flex h-14 items-center justify-between border-b border-[var(--color-border-subtle)] px-5">
         <Link href="/dashboard" className="flex items-center" onClick={onClose}>
           <Image src="/duoph-logo.png" alt="Duoph" width={706} height={244} priority className="h-auto w-28" />
         </Link>
@@ -55,7 +55,12 @@ export function Sidebar({
       </div>
       <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4" aria-label="Main">
         <NavGroup label="Workspace" items={primaryItems} pathname={pathname} onNavigate={onClose} />
-        <NavGroup label="Business" items={businessItems} pathname={pathname} onNavigate={onClose} />
+        <NavGroup
+          label="Business"
+          items={businessItems.filter((item) => !item.finance || user.role === "admin" || user.role === "manager")}
+          pathname={pathname}
+          onNavigate={onClose}
+        />
 
         <div className="mt-3 border-t border-[var(--color-border-subtle)] pt-4">
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Manage</p>
@@ -67,6 +72,15 @@ export function Sidebar({
 
       </nav>
       <div className="border-t border-[var(--color-border-subtle)] p-3">
+        <div className="mb-1 flex items-center gap-2 px-3 py-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[9px] font-bold text-[var(--color-primary)]">
+            {user.name.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-semibold">{user.name}</p>
+            <p className="truncate text-[9px] capitalize text-[var(--color-text-muted)]">{user.role}</p>
+          </div>
+        </div>
         <form action={logoutAction}>
           <Button type="submit" variant="ghost" className="w-full justify-start px-3 text-slate-500 hover:bg-emerald-50 hover:text-[var(--color-primary)]">
             <span aria-hidden>↪</span> Log out

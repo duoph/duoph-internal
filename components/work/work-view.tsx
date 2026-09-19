@@ -8,11 +8,13 @@ import type { WorkItemWithClient } from "@/lib/types/database";
 import { createWorkItemAction, deleteWorkItemAction, updateWorkItemAction } from "@/app/actions/work-items";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeaderActions } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, Th, Td } from "@/components/ui/table";
+import { RowActions } from "@/components/ui/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -68,16 +70,11 @@ export function WorkView({ initialRows, total, clients, workTypes }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Client delivery</p>
-          <h1 className="page-title">Work records</h1>
-          <p className="text-sm text-(--color-text-secondary)">Track work by client, type, and status</p>
-        </div>
-        <Button type="button" onClick={() => setModal("create")}>
+      <PageHeaderActions>
+        <Button type="button" className="h-9 px-3.5 py-0 text-xs" onClick={() => setModal("create")}>
           Add work
         </Button>
-      </div>
+      </PageHeaderActions>
 
       <Card>
         <CardTitle className="mb-4">Filters</CardTitle>
@@ -178,12 +175,19 @@ export function WorkView({ initialRows, total, clients, workTypes }: Props) {
               <Th>Status</Th>
               <Th>Committed</Th>
               <Th>Completed</Th>
-              <Th className="text-right">Actions</Th>
+              <Th className="w-12 pr-3"><span className="sr-only">Actions</span></Th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.map((r) => (
-              <tr key={r.id} className="hover:bg-slate-50">
+              <tr
+                key={r.id}
+                className="cursor-pointer hover:bg-slate-50"
+                onClick={() => {
+                  setEditing(r);
+                  setModal("edit");
+                }}
+              >
                 <Td className="font-medium">
                   <div className="min-w-0">
                     <p className="truncate">{r.work}</p>
@@ -200,25 +204,13 @@ export function WorkView({ initialRows, total, clients, workTypes }: Props) {
                 <Td>{r.committed_date ? formatDate(r.committed_date) : "—"}</Td>
                 <Td>{r.completed_date ? formatDate(r.completed_date) : "—"}</Td>
                 <Td className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="px-2 py-1"
-                    onClick={() => {
+                  <RowActions
+                    onEdit={() => {
                       setEditing(r);
                       setModal("edit");
                     }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    className="ml-2 px-2 py-1"
-                    onClick={() => setDeleteTarget(r)}
-                  >
-                    Delete
-                  </Button>
+                    onDelete={() => setDeleteTarget(r)}
+                  />
                 </Td>
               </tr>
             ))}

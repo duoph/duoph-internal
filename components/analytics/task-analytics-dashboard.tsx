@@ -17,6 +17,33 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils/format";
 
+type MemberAnalytics = {
+  id: string;
+  name: string;
+  email: string;
+  total: number;
+  completed: number;
+  active: number;
+  overdue: number;
+  missed: number;
+  onTime: number;
+  dueCompleted: number;
+  completedLate: number;
+  todo: number;
+  inProgress: number;
+  inReview: number;
+  completed7d: number;
+  completed30d: number;
+  averageCompletionHours: number;
+  averageLatenessHours: number;
+  averageTaskPoints: number;
+  completionRate: number;
+  onTimeRate: number;
+  reliability: number;
+  score: number;
+  rank: number;
+};
+
 type Analytics = {
   summary: {
     total: number;
@@ -25,23 +52,28 @@ type Analytics = {
     overdue: number;
     missed: number;
     completionRate: number;
+    onTime: number;
+    completedLate: number;
+    onTimeRate: number;
+    averageScore: number;
   };
   completionTrend: { label: string; completed: number }[];
   byStatus: { status: string; value: number }[];
-  members: {
-    id: string;
-    name: string;
-    email: string;
-    total: number;
-    completed: number;
-    active: number;
-    overdue: number;
-    missed: number;
-  }[];
+  members: MemberAnalytics[];
+  topPerformer: MemberAnalytics | null;
   attention: {
     id: string;
     title: string;
     due_date: string | null;
+    assignees: { id: string; name: string; email: string }[];
+  }[];
+  lateCompletions: {
+    id: string;
+    title: string;
+    due_date: string | null;
+    completed_at: string | null;
+    days_late: number | null;
+    score_points: number | null;
     assignees: { id: string; name: string; email: string }[];
   }[];
 };
@@ -55,21 +87,17 @@ export function TaskAnalyticsDashboard({
   analytics: Analytics;
   teamView: boolean;
 }) {
+  const formatHours = (hours: number) =>
+    hours >= 24 ? `${(hours / 24).toFixed(1)}d` : `${hours}h`;
   const stats = [
+    { label: teamView ? "Team score" : "Performance score", value: analytics.summary.averageScore, detail: "Out of 100" },
     { label: "Completion rate", value: `${analytics.summary.completionRate}%`, detail: `${analytics.summary.completed} completed` },
-    { label: "Active tasks", value: analytics.summary.active, detail: `${analytics.summary.total} total` },
-    { label: "Overdue now", value: analytics.summary.overdue, detail: "Needs attention" },
-    { label: "Deadlines missed", value: analytics.summary.missed, detail: "Historical total" },
+    { label: "On-time rate", value: `${analytics.summary.onTimeRate}%`, detail: `${analytics.summary.onTime} on time` },
+    { label: "Late completions", value: analytics.summary.completedLate, detail: `${analytics.summary.missed} missed deadlines kept` },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">{teamView ? "Team performance" : "My performance"}</p>
-        <h1 className="page-title">Task analytics</h1>
-        <p className="page-subtitle">Delivery health, workload, and deadline performance at a glance.</p>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="p-5 shadow-none">
@@ -79,6 +107,23 @@ export function TaskAnalyticsDashboard({
           </Card>
         ))}
       </div>
+
+      {teamView && analytics.topPerformer ? (
+        <Card className="flex flex-wrap items-center gap-5 border-emerald-100 bg-[var(--color-primary-soft)] shadow-none">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl" aria-hidden>🏆</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">Current leader</p>
+            <p className="mt-1 text-lg font-semibold">{analytics.topPerformer.name}</p>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              {analytics.topPerformer.completed} completed · {analytics.topPerformer.onTimeRate}% on time · {analytics.topPerformer.completedLate} late
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-4xl font-semibold text-[var(--color-primary)]">{analytics.topPerformer.score}</p>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">Performance score</p>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.55fr_1fr]">
         <Card className="min-h-80 shadow-none">
@@ -122,45 +167,95 @@ export function TaskAnalyticsDashboard({
       </div>
 
       {teamView ? (
+        <>
         <Card className="overflow-hidden p-0 shadow-none">
           <div className="border-b border-[var(--color-border-subtle)] p-5">
-            <CardTitle>Team performance</CardTitle>
-            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Assigned workload and deadline record</p>
+            <CardTitle>Team leaderboard</CardTitle>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              Scores are stored in MongoDB. On-time finishes score 100, overdue completions keep the miss and score 30–70, still-overdue tasks score 0.
+            </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[880px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-[var(--color-text-muted)]">
                 <tr>
+                  <th className="px-4 py-3 text-center font-semibold">Rank</th>
                   <th className="px-5 py-3 font-semibold">Team member</th>
+                  <th className="px-4 py-3 font-semibold">Score</th>
                   <th className="px-4 py-3 font-semibold">Assigned</th>
-                  <th className="px-4 py-3 font-semibold">Active</th>
                   <th className="px-4 py-3 font-semibold">Completed</th>
+                  <th className="px-4 py-3 font-semibold">Completion</th>
+                  <th className="px-4 py-3 font-semibold">On time</th>
+                  <th className="px-4 py-3 font-semibold">Late</th>
                   <th className="px-4 py-3 font-semibold">Overdue</th>
                   <th className="px-4 py-3 font-semibold">Missed</th>
-                  <th className="px-5 py-3 font-semibold">Completion</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border-subtle)]">
                 {analytics.members.map((member) => (
-                  <tr key={member.id}>
+                  <tr key={member.id} className={member.rank === 1 ? "bg-emerald-50/50" : ""}>
+                    <td className="px-4 py-4 text-center">
+                      <span className={member.rank === 1 ? "text-lg" : "font-semibold text-[var(--color-text-muted)]"}>
+                        {member.rank === 1 ? "🏆" : `#${member.rank}`}
+                      </span>
+                    </td>
                     <td className="px-5 py-4">
                       <p className="font-medium">{member.name}</p>
                       <p className="text-xs text-[var(--color-text-muted)]">{member.email}</p>
                     </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex min-w-12 justify-center rounded-lg bg-[var(--color-primary-soft)] px-2 py-1 font-semibold text-[var(--color-primary)]">
+                        {member.score}
+                      </span>
+                    </td>
                     <td className="px-4 py-4">{member.total}</td>
-                    <td className="px-4 py-4">{member.active}</td>
                     <td className="px-4 py-4 text-emerald-700">{member.completed}</td>
+                    <td className="px-4 py-4 font-medium">{member.completionRate}%</td>
+                    <td className="px-4 py-4 font-medium">{member.onTimeRate}%</td>
+                    <td className="px-4 py-4 text-amber-700">{member.completedLate}</td>
                     <td className="px-4 py-4 text-amber-700">{member.overdue}</td>
                     <td className="px-4 py-4 text-rose-700">{member.missed}</td>
-                    <td className="px-5 py-4">
-                      <span className="font-semibold">{member.total ? Math.round((member.completed / member.total) * 100) : 0}%</span>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {analytics.members.map((member) => (
+            <Card key={member.id} className="shadow-none">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold">{member.name}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">Rank #{member.rank} · {member.total} assigned</p>
+                </div>
+                <span className="rounded-lg bg-[var(--color-primary-soft)] px-3 py-1.5 text-lg font-semibold text-[var(--color-primary)]">
+                  {member.score}
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-border-subtle)] sm:grid-cols-4">
+                {[
+                  { label: "Last 7 days", value: member.completed7d },
+                  { label: "Last 30 days", value: member.completed30d },
+                  { label: "Avg. completion", value: formatHours(member.averageCompletionHours) },
+                  { label: "Avg. late by", value: formatHours(member.averageLatenessHours) },
+                  { label: "To do", value: member.todo },
+                  { label: "In progress", value: member.inProgress },
+                  { label: "In review", value: member.inReview },
+                  { label: "Completed late", value: member.completedLate },
+                  { label: "Task points", value: member.averageTaskPoints },
+                  { label: "Reliability", value: `${member.reliability}%` },
+                ].map((metric) => (
+                  <div key={metric.label} className="bg-white p-3">
+                    <p className="text-[9px] uppercase tracking-wide text-[var(--color-text-muted)]">{metric.label}</p>
+                    <p className="mt-1 text-sm font-semibold">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+        </>
       ) : null}
 
       <Card className="shadow-none">
@@ -186,6 +281,37 @@ export function TaskAnalyticsDashboard({
             ))}
           </div>
         ) : <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">No overdue tasks. Everything is on track.</p>}
+      </Card>
+
+      <Card className="shadow-none">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>Completed after deadline</CardTitle>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              These stay on the record and still count toward scores with reduced points.
+            </p>
+          </div>
+        </div>
+        {analytics.lateCompletions.length ? (
+          <div className="divide-y divide-[var(--color-border-subtle)]">
+            {analytics.lateCompletions.map((task) => (
+              <div key={task.id} className="flex flex-wrap items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <Link href="/tasks" className="font-medium hover:text-[var(--color-primary)]">{task.title}</Link>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {task.assignees.map((user) => user.name).join(", ") || "Unassigned"}
+                    {task.completed_at ? ` · finished ${formatDate(task.completed_at.slice(0, 10))}` : ""}
+                  </p>
+                </div>
+                <Badge className="border-amber-200 bg-amber-50 text-amber-800">
+                  {task.days_late ?? 0}d late · {task.score_points ?? 0} pts
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">No late completions on record.</p>
+        )}
       </Card>
     </div>
   );

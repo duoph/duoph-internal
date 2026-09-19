@@ -1,7 +1,12 @@
+import { redirect } from "next/navigation";
 import { reportsService } from "@/lib/api/reports";
 import { ReportCharts } from "@/components/reports/report-charts";
+import { canManageFinance, getCurrentUser } from "@/lib/auth/authorization";
 
 export default async function ReportsPage() {
+  const user = await getCurrentUser();
+  if (!user || !canManageFinance(user)) redirect("/dashboard");
+
   const rows = await reportsService.raw();
   const monthly = reportsService.monthlySeries(rows, 6);
   const weekly = reportsService.weeklySeries(rows, 8);
@@ -9,11 +14,7 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">Financial intelligence</p>
-        <h1 className="page-title">Reports</h1>
-        <p className="page-subtitle">Income vs expense and client mix.</p>
-      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">Income vs expense and client mix.</p>
       <ReportCharts monthly={monthly} weekly={weekly} byClient={byClient} />
     </div>
   );

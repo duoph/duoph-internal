@@ -12,11 +12,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <div>
-        <p className="eyebrow">Your account</p>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Profile preferences and workspace access.</p>
-      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">Profile preferences and workspace access.</p>
       <SettingsForm email={user.email ?? ""} initialName={profile?.admin_name ?? ""} />
       {isAdmin ? <AdminCreateUser /> : null}
     </div>

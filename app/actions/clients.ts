@@ -12,6 +12,7 @@ export async function createClientAction(input: {
   contact_number: string;
   country: string;
   work_type: WorkType;
+  project_value: number;
   admin_name: string;
 }) {
   const user = await getSession();
@@ -23,6 +24,7 @@ export async function createClientAction(input: {
       contact_number: input.contact_number,
       country: input.country,
       work_type: input.work_type,
+      project_value: Math.max(0, Number(input.project_value) || 0),
       admin_name: input.admin_name,
     });
     revalidatePath("/clients", "page");
@@ -43,6 +45,7 @@ export async function updateClientAction(
     contact_number: string;
     country: string;
     work_type: WorkType;
+    project_value: number;
     admin_name: string;
   }>,
 ) {

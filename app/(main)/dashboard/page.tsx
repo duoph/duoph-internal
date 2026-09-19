@@ -2,25 +2,33 @@ import Link from "next/link";
 import { dashboardService } from "@/lib/api/dashboard";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeaderActions } from "@/components/layout/page-chrome";
 import { Table, Th, Td } from "@/components/ui/table";
 import { formatDate, formatMoney } from "@/lib/utils/format";
 import { workTypeService } from "@/lib/api/work-types";
-import { getCurrentUser, canViewTeamAnalytics } from "@/lib/auth/authorization";
+import { canManageFinance, getCurrentUser, type CurrentUser } from "@/lib/auth/authorization";
 import { taskAnalyticsService } from "@/lib/api/task-analytics";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  const [metrics, workTypes, taskAnalytics] = await Promise.all([
+  if (!user) return null;
+
+  const taskAnalytics = await taskAnalyticsService.get({
+    viewerId: user.id,
+    canViewAll: true,
+  });
+  if (!canManageFinance(user)) {
+    return <MemberDashboard user={user} analytics={taskAnalytics} />;
+  }
+
+  const [metrics, workTypes] = await Promise.all([
     dashboardService.metrics(),
     workTypeService.list(),
-    user
-      ? taskAnalyticsService.get({ viewerId: user.id, canViewAll: canViewTeamAnalytics(user) })
-      : null,
   ]);
 
   const statCards = [
-    { label: "Active tasks", value: String(taskAnalytics?.summary.active ?? 0), detail: `${taskAnalytics?.summary.overdue ?? 0} overdue` },
-    { label: "Completion rate", value: `${taskAnalytics?.summary.completionRate ?? 0}%`, detail: `${taskAnalytics?.summary.completed ?? 0} delivered` },
+    { label: "Active tasks", value: String(taskAnalytics.summary.active), detail: `${taskAnalytics.summary.overdue} overdue` },
+    { label: "Completion rate", value: `${taskAnalytics.summary.completionRate}%`, detail: `${taskAnalytics.summary.completed} delivered` },
     { label: "Total clients", value: String(metrics.totalClients), detail: "All client accounts" },
     { label: "Current balance", value: formatMoney(metrics.balance), detail: "Income less expenses" },
   ];
@@ -32,23 +40,19 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">{today}</p>
-          <h1 className="page-title">Good day, {user?.name.split(" ")[0] ?? "team"}.</h1>
-          <p className="page-subtitle">Here is what is happening across Duoph today.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/tasks">
-            <Button type="button">View tasks</Button>
-          </Link>
-          <Link href="/clients">
-            <Button type="button" variant="secondary">
-              Clients
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <PageHeaderActions>
+        <Link href="/tasks">
+          <Button type="button" className="h-9 px-3.5 py-0 text-xs">View tasks</Button>
+        </Link>
+        <Link href="/clients">
+          <Button type="button" variant="secondary" className="h-9 px-3.5 py-0 text-xs">
+            Clients
+          </Button>
+        </Link>
+      </PageHeaderActions>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        {today} — Good day, {user?.name.split(" ")[0] ?? "team"}. Here is what is happening across Duoph today.
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((s) => (
@@ -111,7 +115,7 @@ export default async function DashboardPage() {
           </div>
           <Link href="/analytics" className="text-xs font-semibold text-[var(--color-primary)]">Analytics</Link>
         </div>
-        {taskAnalytics?.attention.length ? (
+        {taskAnalytics.attention.length ? (
           <div className="divide-y divide-[var(--color-border-subtle)]">
             {taskAnalytics.attention.slice(0, 5).map((task) => (
               <Link key={task.id} href="/tasks" className="flex items-center gap-3 py-3">
@@ -137,6 +141,107 @@ export default async function DashboardPage() {
         )}
       </Card>
       </div>
+    </div>
+  );
+}
+
+type TaskAnalytics = Awaited<ReturnType<typeof taskAnalyticsService.get>>;
+
+function MemberDashboard({
+  user,
+  analytics,
+}: {
+  user: CurrentUser;
+  analytics: TaskAnalytics;
+}) {
+  const personal = analytics.members.find((member) => member.id === user.id);
+  const stats = [
+    { label: "Your rank", value: personal ? `#${personal.rank}` : "—", detail: `${analytics.members.length} teammates` },
+    { label: "Performance score", value: personal?.score ?? 0, detail: `Team average ${analytics.summary.averageScore}` },
+    { label: "Active tasks", value: personal?.active ?? 0, detail: `${personal?.completed ?? 0} completed` },
+    { label: "Completion rate", value: `${personal?.completionRate ?? 0}%`, detail: `${personal?.total ?? 0} assigned` },
+    { label: "On-time delivery", value: `${personal?.onTimeRate ?? 0}%`, detail: `${personal?.onTime ?? 0} on time` },
+    { label: "Late completions", value: personal?.completedLate ?? 0, detail: `${personal?.missed ?? 0} missed kept on record` },
+  ];
+  const scoreDifference = (personal?.score ?? 0) - analytics.summary.averageScore;
+
+  return (
+    <div className="space-y-7">
+      <PageHeaderActions>
+        <Link href="/tasks"><Button type="button" className="h-9 px-3.5 py-0 text-xs">My tasks</Button></Link>
+        <Link href="/clients"><Button type="button" variant="secondary" className="h-9 px-3.5 py-0 text-xs">Add client</Button></Link>
+      </PageHeaderActions>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Welcome back, {user.name.split(" ")[0]}. Track your work, compare progress, and keep moving up.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {stats.map((stat) => (
+          <Card key={stat.label} className="p-5 shadow-none">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-muted)]">{stat.label}</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight">{stat.value}</p>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{stat.detail}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="flex flex-wrap items-center gap-5 border-emerald-100 bg-[var(--color-primary-soft)] shadow-none">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl" aria-hidden>
+          {scoreDifference >= 0 ? "↗" : "↑"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <CardTitle>{scoreDifference >= 0 ? "You are above the team average" : "Your next target is within reach"}</CardTitle>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            {scoreDifference >= 0
+              ? `${scoreDifference} points ahead. Keep completing work on time.`
+              : `${Math.abs(scoreDifference)} more points to reach the current team average.`}
+          </p>
+        </div>
+        <Link href="/analytics" className="text-xs font-semibold text-[var(--color-primary)]">View detailed analytics →</Link>
+      </Card>
+
+      <Card className="overflow-hidden p-0 shadow-none">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] p-5">
+          <div>
+            <CardTitle>Team leaderboard</CardTitle>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Everyone can see progress; financial data remains private.</p>
+          </div>
+          <Link href="/analytics" className="text-xs font-semibold text-[var(--color-primary)]">All KPIs</Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
+              <tr>
+                <th className="px-5 py-3">Rank</th>
+                <th className="px-4 py-3">Team member</th>
+                <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3">Completed</th>
+                <th className="px-4 py-3">On time</th>
+                <th className="px-4 py-3">Late</th>
+                <th className="px-4 py-3">Overdue</th>
+                <th className="px-5 py-3">Missed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border-subtle)]">
+              {analytics.members.map((member) => (
+                <tr key={member.id} className={member.id === user.id ? "bg-emerald-50/50" : ""}>
+                  <td className="px-5 py-4 font-semibold">{member.rank === 1 && member.score > 0 ? "🏆" : `#${member.rank}`}</td>
+                  <td className="px-4 py-4">
+                    <p className="font-medium">{member.name}{member.id === user.id ? " · You" : ""}</p>
+                    <p className="text-[10px] text-[var(--color-text-muted)]">{member.active} active tasks</p>
+                  </td>
+                  <td className="px-4 py-4 font-semibold text-[var(--color-primary)]">{member.score}</td>
+                  <td className="px-4 py-4">{member.completed}</td>
+                  <td className="px-4 py-4">{member.onTimeRate}%</td>
+                  <td className="px-4 py-4 text-amber-700">{member.completedLate}</td>
+                  <td className="px-4 py-4 text-amber-700">{member.overdue}</td>
+                  <td className="px-5 py-4 text-rose-700">{member.missed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

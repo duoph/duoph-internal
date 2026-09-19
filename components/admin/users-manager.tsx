@@ -1,12 +1,18 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { adminSetUserDisabledAction, adminUpdateUserRoleAction } from "@/app/actions/admin";
+import {
+  adminResetUserPasswordAction,
+  adminSetUserDisabledAction,
+  adminUpdateUserRoleAction,
+} from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
+import { Modal } from "@/components/ui/modal";
+import { PasswordInput } from "@/components/ui/password-input";
 import type { UserRole } from "@/lib/types/database";
 
 export type ManagedUser = {
@@ -21,8 +27,10 @@ export type ManagedUser = {
 export function UsersManager({ users }: { users: ManagedUser[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
 
   return (
+    <>
     <Card className="overflow-hidden p-0 shadow-none">
       <div className="border-b border-[var(--color-border-subtle)] p-5">
         <CardTitle>Workspace users</CardTitle>
@@ -75,6 +83,15 @@ export function UsersManager({ users }: { users: ManagedUser[] }) {
                 <td className="px-5 py-4 text-right">
                   <Button
                     type="button"
+                    variant="ghost"
+                    disabled={pending}
+                    className="mr-2 px-3 py-2 text-xs"
+                    onClick={() => setResetTarget(user)}
+                  >
+                    Reset password
+                  </Button>
+                  <Button
+                    type="button"
                     variant="secondary"
                     disabled={pending}
                     className="px-3 py-2 text-xs"
@@ -97,6 +114,50 @@ export function UsersManager({ users }: { users: ManagedUser[] }) {
         </table>
       </div>
     </Card>
+      <Modal
+        open={Boolean(resetTarget)}
+        title="Reset user password"
+        onClose={() => setResetTarget(null)}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!resetTarget) return;
+            const password = String(new FormData(event.currentTarget).get("password") ?? "");
+            startTransition(async () => {
+              const result = await adminResetUserPasswordAction(resetTarget.id, password);
+              if ("error" in result && result.error) {
+                toast.error(result.error);
+                return;
+              }
+              toast.success(`Password reset for ${resetTarget.name}`);
+              setResetTarget(null);
+            });
+          }}
+        >
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Set a new temporary password for <strong className="text-[var(--color-text-primary)]">{resetTarget?.name}</strong>.
+          </p>
+          <div>
+            <label className="field-label" htmlFor="reset-user-password">New temporary password</label>
+            <PasswordInput
+              id="reset-user-password"
+              name="password"
+              autoComplete="new-password"
+              required
+            />
+            <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
+              Use at least 8 characters with uppercase, number, and special character.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setResetTarget(null)}>Cancel</Button>
+            <Button type="submit" disabled={pending}>{pending ? "Resetting…" : "Reset password"}</Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 

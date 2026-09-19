@@ -6,6 +6,8 @@ export type TaskStatus = "todo" | "in_progress" | "in_review" | "completed" | "c
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
+export type DeadlineOutcome = "none" | "on_time" | "late" | "open_overdue";
+
 export type TaskRow = {
   id: string;
   title: string;
@@ -18,6 +20,11 @@ export type TaskRow = {
   due_date: string | null;
   completed_at: string | null;
   first_missed_at: string | null;
+  deadline_outcome: DeadlineOutcome;
+  completed_late: boolean;
+  days_late: number | null;
+  lateness_hours: number | null;
+  score_points: number | null;
   tags: string[];
   deleted_at: string | null;
   created_at: string;
@@ -28,6 +35,29 @@ export type TaskWithRelations = TaskRow & {
   assignees: { id: string; name: string; email: string }[];
   client: { id: string; client_name: string } | null;
   creator: { id: string; name: string } | null;
+};
+
+export type TaskActivityRow = {
+  id: string;
+  task_id: string;
+  actor_id: string;
+  actor: { id: string; name: string } | null;
+  action: "created" | "updated" | "deleted";
+  details: {
+    changedFields?: string[];
+    previousStatus?: TaskStatus;
+    status?: TaskStatus;
+    assigneeIds?: string[];
+    previousAssigneeIds?: string[];
+    dueDate?: string | null;
+    previousDueDate?: string | null;
+    priority?: TaskPriority;
+    completedLate?: boolean;
+    deadlineOutcome?: DeadlineOutcome;
+    daysLate?: number | null;
+    scorePoints?: number | null;
+  };
+  created_at: string;
 };
 
 export type WorkTypeRow = {
@@ -65,6 +95,7 @@ export type ClientRow = {
   contact_number: string;
   country: string;
   work_type: WorkType;
+  project_value: number;
   admin_name: string | null;
   created_at: string;
 };

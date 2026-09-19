@@ -3,7 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/authorization";
-import { createUser, findUserByEmail, setUserDisabled, updateUserRole } from "@/lib/auth/users";
+import {
+  createUser,
+  findUserByEmail,
+  setUserDisabled,
+  updateUserPassword,
+  updateUserRole,
+} from "@/lib/auth/users";
 import { validatePassword } from "@/lib/validation/password";
 import type { UserRole } from "@/lib/types/database";
 
@@ -69,4 +75,19 @@ export async function adminSetUserDisabledAction(userId: string, disabled: boole
   await setUserDisabled(userId, disabled);
   revalidatePath("/admin");
   return { ok: true as const };
+}
+
+export async function adminResetUserPasswordAction(userId: string, password: string) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") return { error: "Forbidden" };
+
+  const validation = validatePassword(password);
+  if (!validation.ok) return { error: validation.message };
+
+  try {
+    await updateUserPassword(userId, password);
+    return { ok: true as const };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not reset password." };
+  }
 }

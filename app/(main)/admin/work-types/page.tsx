@@ -12,10 +12,7 @@ export default async function AdminWorkTypesPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="page-title">Work types</h1>
-        <p className="text-sm text-(--color-text-secondary)">Add new work types for clients and cashflow</p>
-      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">Add new work types for clients and cashflow</p>
       <WorkTypesManager initial={workTypes} />
     </div>
   );

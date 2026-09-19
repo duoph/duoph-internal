@@ -12,6 +12,7 @@ type ClientDoc = {
   contact_number: string;
   country: string;
   work_type: string;
+  project_value?: number;
   admin_name: string | null;
   created_at: Date;
 };
@@ -24,6 +25,7 @@ function toRow(doc: ClientDoc): ClientRow {
     contact_number: doc.contact_number,
     country: doc.country,
     work_type: doc.work_type as WorkType,
+    project_value: Number(doc.project_value ?? 0),
     admin_name: doc.admin_name,
     created_at: toIso(doc.created_at)!,
   };

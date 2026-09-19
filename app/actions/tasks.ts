@@ -29,7 +29,7 @@ function revalidateTasks() {
 
 export async function createTaskAction(input: z.input<typeof taskSchema>) {
   const user = await getCurrentUser();
-  if (!user || !canManageTasks(user)) return { error: "You do not have permission to create tasks." };
+  if (!user) return { error: "Unauthorized" };
 
   const parsed = taskSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid task." };
@@ -62,11 +62,18 @@ export async function updateTaskAction(
 
   if (!canManageTasks(user)) {
     const visible = await taskService.list({ viewerId: user.id, canViewAll: false });
-    const task = visible.find((item) => item.id === id && item.assignee_ids.includes(user.id));
+    const task = visible.find((item) => item.id === id);
     if (!task) return { error: "You do not have permission to update this task." };
-    const keys = Object.keys(input);
-    if (keys.some((key) => key !== "status") || !input.status || !statuses.includes(input.status)) {
-      return { error: "Members can only update task status." };
+    if (task.created_by !== user.id) {
+      const keys = Object.keys(input);
+      if (
+        !task.assignee_ids.includes(user.id) ||
+        keys.some((key) => key !== "status") ||
+        !input.status ||
+        !statuses.includes(input.status)
+      ) {
+        return { error: "You can only update the status of tasks assigned to you." };
+      }
     }
   }
 
@@ -100,12 +107,40 @@ export async function updateTaskAction(
 
 export async function deleteTaskAction(id: string) {
   const user = await getCurrentUser();
-  if (!user || !canManageTasks(user)) return { error: "You do not have permission to delete tasks." };
+  if (!user) return { error: "Unauthorized" };
+
+  if (!canManageTasks(user)) {
+    const visible = await taskService.list({ viewerId: user.id, canViewAll: false });
+    const task = visible.find((item) => item.id === id);
+    if (!task || task.created_by !== user.id) {
+      return { error: "You can only delete tasks that you created." };
+    }
+  }
 
   try {
     await taskService.softDelete(id, user.id);
     revalidateTasks();
     return { ok: true as const };
+  } catch (error) {
+    return { error: dbErrorMessage(error) };
+  }
+}
+
+export async function getTaskActivityAction(id: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const visible = await taskService.list({
+    viewerId: user.id,
+    canViewAll: canManageTasks(user),
+  });
+  if (!visible.some((task) => task.id === id)) {
+    return { error: "You do not have permission to view this task." };
+  }
+
+  try {
+    const activity = await taskService.activity(id);
+    return { ok: true as const, activity };
   } catch (error) {
     return { error: dbErrorMessage(error) };
   }

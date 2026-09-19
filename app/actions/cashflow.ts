@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth/session";
+import { canManageFinance, getCurrentUser } from "@/lib/auth/authorization";
 import { cashflowService } from "@/lib/api/cashflow";
 import type { WorkType } from "@/lib/types/database";
 
@@ -14,8 +14,8 @@ export async function createCashflowAction(input: {
   client_id: string | null;
   work_type: WorkType;
 }) {
-  const user = await getSession();
-  if (!user) return { error: "Unauthorized" };
+  const user = await getCurrentUser();
+  if (!user || !canManageFinance(user)) return { error: "You do not have access to financial data." };
   try {
     await cashflowService.create({
       date: input.date,
@@ -48,8 +48,8 @@ export async function updateCashflowAction(
     work_type: WorkType;
   }>,
 ) {
-  const user = await getSession();
-  if (!user) return { error: "Unauthorized" };
+  const user = await getCurrentUser();
+  if (!user || !canManageFinance(user)) return { error: "You do not have access to financial data." };
   try {
     await cashflowService.update(id, {
       ...input,
@@ -66,8 +66,8 @@ export async function updateCashflowAction(
 }
 
 export async function deleteCashflowAction(id: string) {
-  const user = await getSession();
-  if (!user) return { error: "Unauthorized" };
+  const user = await getCurrentUser();
+  if (!user || !canManageFinance(user)) return { error: "You do not have access to financial data." };
   try {
     await cashflowService.remove(id);
     revalidatePath("/cashflow");
