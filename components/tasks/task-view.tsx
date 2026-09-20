@@ -785,20 +785,20 @@ function TaskEditor({
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
-          const input = {
+          const fields = {
             title: String(formData.get("title") ?? ""),
             description: String(formData.get("description") ?? ""),
-            ...(canSetStatus ? { status: String(formData.get("status") ?? "todo") as TaskStatus } : {}),
             priority: String(formData.get("priority") ?? "medium") as TaskPriority,
             assignee_ids: assignees,
             client_id: String(formData.get("client_id") ?? ""),
             due_date: String(formData.get("due_date") ?? ""),
             tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
           };
+          const status = String(formData.get("status") ?? "todo") as TaskStatus;
           startTransition(async () => {
             const result = task
-              ? await updateTaskAction(task.id, input)
-              : await createTaskAction(input);
+              ? await updateTaskAction(task.id, canSetStatus ? { ...fields, status } : fields)
+              : await createTaskAction({ ...fields, status });
             if (result.error) {
               toast.error(result.error);
               return;
