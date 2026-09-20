@@ -315,7 +315,6 @@ export function TaskView({
             {groups.length ? groups.map((group) => {
               const isCollapsed = collapsed[group.key];
               const completed = group.rows.filter((task) => task.status === "completed").length;
-              const canAddHere = group.key !== "overdue" && (!group.dueDate || group.dueDate >= today);
               return (
                 <section key={group.key}>
                   <button
@@ -346,18 +345,6 @@ export function TaskView({
                           onDelete={() => setDeleteTarget(task)}
                         />
                       ))}
-                      {canAddHere ? (
-                        <div className={cn("grid items-center gap-3 px-4 py-1.5", TABLE_COLS)}>
-                          <span />
-                          <button
-                            type="button"
-                            className="text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                            onClick={() => openCreate("", group.dueDate)}
-                          >
-                            + New task
-                          </button>
-                        </div>
-                      ) : null}
                       <p className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
                         Complete {completed}/{group.rows.length}
                       </p>
