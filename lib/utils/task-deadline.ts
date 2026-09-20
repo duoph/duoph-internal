@@ -21,6 +21,12 @@ export function deadlineFor(dueDate: string) {
   return new Date(`${dueDate}T23:59:59.999Z`);
 }
 
+export function defaultDueDate(now = new Date()) {
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function hoursBetween(later: Date, earlier: Date) {
   return Math.max(0, (later.getTime() - earlier.getTime()) / (60 * 60 * 1000));
 }

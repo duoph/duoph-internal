@@ -74,15 +74,15 @@ export function OverviewView({
         <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-white p-4">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold">Finished each week</h2>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Last 8 weeks</p>
+              <h2 className="text-sm font-semibold">Weekly delivery</h2>
+              <p className="text-[11px] text-[var(--color-text-muted)]">Finished vs started · last 8 weeks</p>
             </div>
             <Link href="/tasks" className="text-[11px] font-semibold text-[var(--color-primary)]">Tasks</Link>
           </div>
           <WeekChart data={analytics.completionTrend} />
-          <div className="mt-3">
+          <div className="mt-4 border-t border-[var(--color-border-subtle)] pt-3">
             <p className="mb-1.5 text-[11px] font-medium text-[var(--color-text-secondary)]">Where work sits now</p>
-            <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
               {analytics.byStatus.map((item, index) => (
                 <span
                   key={item.status}
@@ -95,7 +95,11 @@ export function OverviewView({
               {analytics.byStatus.map((item, index) => (
                 <span key={item.status} className="inline-flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)]">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
-                  {item.status} <strong className="font-semibold text-[var(--color-text-primary)]">{item.value}</strong>
+                  {item.status}{" "}
+                  <strong className="font-semibold text-[var(--color-text-primary)]">{item.value}</strong>
+                  <span className="text-[var(--color-text-muted)]">
+                    {Math.round((item.value / statusTotal) * 100)}%
+                  </span>
                 </span>
               ))}
             </div>

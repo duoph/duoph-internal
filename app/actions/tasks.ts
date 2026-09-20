@@ -6,6 +6,7 @@ import { getCurrentUser, canAccessTask, canEditTask, canManageTasks, canUpdateTa
 import { dbErrorMessage } from "@/lib/db/error-message";
 import { taskService } from "@/lib/api/tasks";
 import type { TaskPriority, TaskStatus } from "@/lib/types/database";
+import { defaultDueDate } from "@/lib/utils/task-deadline";
 
 const statuses: TaskStatus[] = ["todo", "in_progress", "in_review", "completed", "cancelled"];
 const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -42,7 +43,7 @@ export async function createTaskAction(input: z.input<typeof taskSchema>) {
         ...parsed.data,
         description: parsed.data.description ?? "",
         client_id: parsed.data.client_id?.trim() || null,
-        due_date: parsed.data.due_date?.trim() || null,
+        due_date: parsed.data.due_date?.trim() || defaultDueDate(),
         assignee_ids: [...new Set(parsed.data.assignee_ids.filter(Boolean))],
         tags: [...new Set(parsed.data.tags.map((tag) => tag.trim()).filter(Boolean))],
       },

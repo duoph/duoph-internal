@@ -63,12 +63,28 @@ export const taskAnalyticsService = {
       const anchor = subWeeks(now, 7 - index);
       const start = startOfWeek(anchor, { weekStartsOn: 1 });
       const end = endOfWeek(anchor, { weekStartsOn: 1 });
-      const count = completed.filter((task) => {
-        if (!task.completed_at) return false;
-        const date = new Date(task.completed_at);
+      const inWeek = (iso: string | null) => {
+        if (!iso) return false;
+        const date = new Date(iso);
         return date >= start && date <= end;
-      }).length;
-      return { label: format(start, "MMM d"), completed: count };
+      };
+      const weekDone = completed.filter((task) => inWeek(task.completed_at));
+      const onTime = weekDone.filter((task) => !task.completed_late).length;
+      const late = weekDone.filter((task) => task.completed_late).length;
+      const created = relevant.filter((task) => inWeek(task.created_at)).length;
+      const current = now >= start && now <= end;
+      const sameMonth = start.getMonth() === end.getMonth();
+      return {
+        label: current ? "Now" : format(start, "MMM d"),
+        range: sameMonth
+          ? `${format(start, "MMM d")}–${format(end, "d")}`
+          : `${format(start, "MMM d")}–${format(end, "MMM d")}`,
+        current,
+        completed: weekDone.length,
+        onTime,
+        late,
+        created,
+      };
     });
 
     const byStatus = [

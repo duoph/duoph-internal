@@ -74,6 +74,53 @@ function dateInDays(today: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function addMonths(today: string, months: number) {
+  const date = new Date(`${today}T00:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBetween(from: string, to: string) {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  return Math.round((end - start) / 86_400_000);
+}
+
+type DurationUnit = "days" | "weeks" | "months";
+
+function dueFromDuration(today: string, amount: number, unit: DurationUnit) {
+  if (unit === "weeks") return dateInDays(today, amount * 7);
+  if (unit === "months") return addMonths(today, amount);
+  return dateInDays(today, amount);
+}
+
+function durationFromDue(today: string, due: string): { amount: string; unit: DurationUnit } {
+  if (due === addMonths(today, 1)) return { amount: "1", unit: "months" };
+  const days = daysBetween(today, due);
+  if (days < 0) return { amount: "", unit: "days" };
+  if (days > 0 && days % 7 === 0) return { amount: String(days / 7), unit: "weeks" };
+  return { amount: String(days), unit: "days" };
+}
+
+function formatDueLabel(iso: string) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${iso}T00:00:00Z`));
+}
+
+const DUE_PRESETS: { id: string; label: string; amount?: number; unit?: DurationUnit }[] = [
+  { id: "today", label: "Today", amount: 0, unit: "days" },
+  { id: "1d", label: "24 hours", amount: 1, unit: "days" },
+  { id: "3d", label: "3 days", amount: 3, unit: "days" },
+  { id: "1w", label: "1 week", amount: 1, unit: "weeks" },
+  { id: "10d", label: "10 days", amount: 10, unit: "days" },
+  { id: "1m", label: "1 month", amount: 1, unit: "months" },
+  { id: "none", label: "No date" },
+];
+
 type UserOption = {
   id: string;
   name: string;
@@ -303,7 +350,7 @@ export function TaskView({
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="min-w-[920px]">
             <div className={cn("sticky top-0 z-20 grid items-center gap-3 border-b border-[var(--color-border-subtle)] bg-white px-4 py-2.5 text-[11px] text-[var(--color-text-muted)]", TABLE_COLS)}>
-              <span>Date</span>
+              <span>Due</span>
               <span>Task name</span>
               <span>Status</span>
               <span>Assigned For</span>
@@ -369,6 +416,7 @@ export function TaskView({
         users={users}
         clients={clients}
         currentUserId={currentUserId}
+        today={today}
         defaultClientId={draftClientId}
         defaultDueDate={draftDueDate}
         onClose={() => {
@@ -467,9 +515,10 @@ function TaskRow({
       <span className={cn(
         "truncate text-sm",
         overdue ? "font-medium text-rose-600" : "text-[var(--color-text-secondary)]",
-        task.status === "completed" && "text-[var(--color-text-muted)] line-through",
+        task.status === "completed" && task.due_date && "text-[var(--color-text-muted)] line-through",
+        !task.due_date && "text-[var(--color-text-muted)]",
       )}>
-        {task.due_date ? formatFriendlyDate(task.due_date) : ""}
+        {task.due_date ? formatFriendlyDate(task.due_date) : "—"}
       </span>
 
       <div className="flex min-w-0 items-center gap-2">
@@ -705,12 +754,134 @@ function TaskDetailModal({
   );
 }
 
+function DueDateField({
+  today,
+  defaultValue = "",
+  defaultToOneDay = false,
+  allowNone = true,
+}: {
+  today: string;
+  defaultValue?: string;
+  defaultToOneDay?: boolean;
+  allowNone?: boolean;
+}) {
+  const initial = defaultValue || (defaultToOneDay ? dateInDays(today, 1) : "");
+  const initialDuration = initial ? durationFromDue(today, initial) : { amount: "", unit: "days" as DurationUnit };
+  const [dueDate, setDueDate] = useState(initial);
+  const [amount, setAmount] = useState(initialDuration.amount);
+  const [unit, setUnit] = useState<DurationUnit>(initialDuration.unit);
+
+  function applyDue(next: string) {
+    const resolved = !next && defaultToOneDay ? dateInDays(today, 1) : next;
+    setDueDate(resolved);
+    if (!resolved) {
+      setAmount("");
+      setUnit("days");
+      return;
+    }
+    const nextDuration = durationFromDue(today, resolved);
+    setAmount(nextDuration.amount);
+    setUnit(nextDuration.unit);
+  }
+
+  function applyDuration(nextAmount: string, nextUnit: DurationUnit) {
+    setAmount(nextAmount);
+    setUnit(nextUnit);
+    const value = Number(nextAmount);
+    if (nextAmount === "" || !Number.isFinite(value) || value < 0) return;
+    setDueDate(dueFromDuration(today, value, nextUnit));
+  }
+
+  const activePreset = DUE_PRESETS.find((preset) => {
+    if (preset.id === "none") return !dueDate;
+    if (preset.amount === undefined || !preset.unit) return false;
+    return dueDate === dueFromDuration(today, preset.amount, preset.unit);
+  })?.id;
+
+  return (
+    <fieldset className="rounded-xl border border-[var(--color-border-subtle)] bg-slate-50/70 p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <legend className="field-label !mb-0">Due</legend>
+        <p className="text-[11px] text-[var(--color-text-muted)]">
+          {dueDate
+            ? `Due ${formatDueLabel(dueDate)}${dueDate < today ? " · overdue" : dueDate === today ? " · today" : ""}`
+            : "No due date"}
+        </p>
+      </div>
+      <input type="hidden" name="due_date" value={dueDate} />
+      <div className="flex flex-wrap gap-1.5">
+        {DUE_PRESETS.filter((preset) => allowNone || preset.id !== "none").map((preset) => {
+          const selected = activePreset === preset.id;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                selected
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                  : "border-[var(--color-border-subtle)] bg-white text-[var(--color-text-secondary)] hover:border-emerald-200",
+              )}
+              onClick={() => {
+                if (preset.id === "none") {
+                  applyDue("");
+                  return;
+                }
+                applyDue(dueFromDuration(today, preset.amount ?? 0, preset.unit ?? "days"));
+              }}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <label className="flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-border-default)] bg-white px-3 py-2">
+          <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-muted)]">Due in</span>
+          <input
+            id="task-due-amount"
+            type="number"
+            min={0}
+            max={365}
+            inputMode="numeric"
+            value={amount}
+            placeholder="—"
+            className="w-16 bg-transparent text-sm font-medium outline-none"
+            onChange={(event) => applyDuration(event.target.value, unit)}
+          />
+          <select
+            aria-label="Due duration unit"
+            value={unit}
+            className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+            onChange={(event) => applyDuration(amount, event.target.value as DurationUnit)}
+          >
+            <option value="days">days</option>
+            <option value="weeks">weeks</option>
+            <option value="months">months</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-border-default)] bg-white px-3 py-2">
+          <span className="shrink-0 text-[11px] font-medium text-[var(--color-text-muted)]">Date</span>
+          <input
+            id="task-due"
+            type="date"
+            value={dueDate}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            onChange={(event) => applyDue(event.target.value)}
+          />
+        </label>
+      </div>
+    </fieldset>
+  );
+}
+
 function TaskEditor({
   open,
   task,
   users,
   clients,
   currentUserId,
+  today,
   defaultClientId = "",
   defaultDueDate = "",
   onClose,
@@ -720,6 +891,7 @@ function TaskEditor({
   users: UserOption[];
   clients: ClientOption[];
   currentUserId: string;
+  today: string;
   defaultClientId?: string;
   defaultDueDate?: string;
   onClose: () => void;
@@ -730,7 +902,7 @@ function TaskEditor({
   const canSetStatus = !task || task.assignee_ids.includes(currentUserId);
 
   return (
-    <Modal open={open} title={task ? "Edit task" : "Create task"} onClose={onClose}>
+    <Modal open={open} title={task ? "Edit task" : "Create task"} onClose={onClose} className="max-w-2xl">
       <form
         className="space-y-4"
         onSubmit={(event) => {
@@ -742,7 +914,7 @@ function TaskEditor({
             priority: String(formData.get("priority") ?? "medium") as TaskPriority,
             assignee_ids: assignees,
             client_id: String(formData.get("client_id") ?? ""),
-            due_date: String(formData.get("due_date") ?? ""),
+            due_date: String(formData.get("due_date") ?? "") || (!task ? dateInDays(today, 1) : ""),
             tags: String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
           };
           const status = String(formData.get("status") ?? "todo") as TaskStatus;
@@ -798,10 +970,23 @@ function TaskEditor({
             </Select>
           </div>
           <div>
-            <label className="field-label" htmlFor="task-due">Due date</label>
-            <Input id="task-due" name="due_date" type="date" defaultValue={task?.due_date ?? defaultDueDate} />
+            <p className="field-label">Created</p>
+            <div className="rounded-[var(--radius-control)] border border-[var(--color-border-subtle)] bg-slate-50 px-3.5 py-2.5">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                {task ? formatFriendlyDate(task.created_at.slice(0, 10)) : "Today"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
+                {task ? "Set when this task was created" : formatDueLabel(today)}
+              </p>
+            </div>
           </div>
         </div>
+        <DueDateField
+          today={today}
+          defaultValue={task?.due_date ?? defaultDueDate}
+          defaultToOneDay={!task}
+          allowNone={Boolean(task)}
+        />
         <fieldset>
           <div className="mb-1 flex items-center justify-between">
             <legend className="field-label !mb-0">Assigned For</legend>
