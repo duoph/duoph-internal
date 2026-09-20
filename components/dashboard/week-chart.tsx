@@ -151,7 +151,12 @@ export function WeekChart({ data }: { data: WeekTrendPoint[] }) {
             />
             <Tooltip
               cursor={{ fill: "#f8fafc" }}
-              content={(props) => <WeekTooltip active={props.active} payload={props.payload as Array<{ payload: WeekTrendPoint }> | undefined} />}
+              content={(props) => (
+                <WeekTooltip
+                  active={props.active}
+                  payload={props.payload as unknown as Array<{ payload: WeekTrendPoint }> | undefined}
+                />
+              )}
             />
             <Bar dataKey="onTime" stackId="done" fill={ON_TIME} maxBarSize={26} name="On time" />
             <Bar dataKey="late" stackId="done" fill={LATE} radius={[4, 4, 0, 0]} maxBarSize={26} name="Late" />
