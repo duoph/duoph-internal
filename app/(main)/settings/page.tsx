@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth/authorization";
 import { profileService } from "@/lib/api/profile";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { AdminCreateUser } from "@/components/settings/admin-create-user";
+
+export const metadata: Metadata = {
+  title: "Settings",
+  description: "Your profile, password, and account preferences.",
+};
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();

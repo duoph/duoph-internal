@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TaskView } from "@/components/tasks/task-view";
 import { getCurrentUser, canManageTasks, roleForUser } from "@/lib/auth/authorization";
@@ -6,6 +7,11 @@ import { clientService } from "@/lib/api/clients";
 import { taskService } from "@/lib/api/tasks";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Tasks",
+  description: "Create, assign, and track work. Due dates default to 24 hours so nothing sits undated.",
+};
 
 export default async function TasksPage({
   searchParams,

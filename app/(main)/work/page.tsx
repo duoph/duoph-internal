@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { workItemService } from "@/lib/api/work-items";
 import { clientService } from "@/lib/api/clients";
 import { workTypeService } from "@/lib/api/work-types";
 import { WorkView } from "@/components/work/work-view";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Work",
+  description: "Committed client work, statuses, and delivery dates.",
+};
 
 export default async function WorkPage({
   searchParams,

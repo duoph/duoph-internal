@@ -1,8 +1,14 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser, roleForUser } from "@/lib/auth/authorization";
 import { listAllUsers } from "@/lib/auth/users";
 import { workTypeService } from "@/lib/api/work-types";
 import { AdminDashboard } from "@/components/admin/admin-dashboard";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  description: "Users, access, and workspace configuration for Duoph Operations.",
+};
 
 export default async function AdminHomePage() {
   const user = await getCurrentUser();

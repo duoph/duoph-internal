@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth/authorization";
 import { workTypeService } from "@/lib/api/work-types";
 import { WorkTypesManager } from "@/components/admin/work-types-manager";
+
+export const metadata: Metadata = {
+  title: "Work types",
+  description: "Labels used for client work across Duoph.",
+};
 
 export default async function AdminWorkTypesPage() {
   const user = await getCurrentUser();

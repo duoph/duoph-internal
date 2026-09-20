@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { reportsService } from "@/lib/api/reports";
 import { ReportCharts } from "@/components/reports/report-charts";
 import { canManageFinance, getCurrentUser } from "@/lib/auth/authorization";
+
+export const metadata: Metadata = {
+  title: "Reports",
+  description: "Monthly and weekly money trends for Duoph operations.",
+};
 
 export default async function ReportsPage() {
   const user = await getCurrentUser();

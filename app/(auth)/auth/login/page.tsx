@@ -1,5 +1,11 @@
 import { Card, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "./login-form";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to Duoph Operations to manage tasks, clients, and delivery.",
+};
 
 export default async function LoginPage({
   searchParams,

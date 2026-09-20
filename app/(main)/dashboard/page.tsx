@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { OverviewView } from "@/components/dashboard/overview-view";
 import { dashboardService } from "@/lib/api/dashboard";
 import { workTypeService } from "@/lib/api/work-types";
@@ -5,6 +6,11 @@ import { canManageFinance, getCurrentUser } from "@/lib/auth/authorization";
 import { taskAnalyticsService } from "@/lib/api/task-analytics";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Overview",
+  description: "Open work, delivery scores, and what needs a push across the Duoph team.",
+};
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
