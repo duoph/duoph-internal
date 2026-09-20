@@ -384,11 +384,6 @@ export function TaskView({
         task={detailTask}
         activity={activity}
         canEdit={detailTask?.created_by === currentUserId}
-        canUpdateStatus={Boolean(detailTask?.assignee_ids.includes(currentUserId))}
-        onStatus={(status) => {
-          if (!detailTask) return;
-          applyStatus(detailTask.id, status);
-        }}
         onClose={() => {
           setDetailTask(null);
           setActivity(null);
@@ -557,8 +552,6 @@ function TaskDetailModal({
   task,
   activity,
   canEdit,
-  canUpdateStatus,
-  onStatus,
   onClose,
   onEdit,
 }: {
@@ -566,8 +559,6 @@ function TaskDetailModal({
   task: TaskWithRelations | null;
   activity: TaskActivityRow[] | null;
   canEdit: boolean;
-  canUpdateStatus: boolean;
-  onStatus: (status: TaskStatus) => void;
   onClose: () => void;
   onEdit: () => void;
 }) {
@@ -613,34 +604,7 @@ function TaskDetailModal({
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge className={cn("border-transparent", priorityStyles[task.priority])}>{task.priority} priority</Badge>
-            {canUpdateStatus ? (
-              <select
-                value={task.status}
-                aria-label={`Status for ${task.title}`}
-                className={cn(
-                  "h-7 appearance-none rounded-full border-0 px-2.5 text-[11px] font-semibold outline-none",
-                  statusStyles[task.status],
-                )}
-                onChange={(event) => {
-                  const status = event.target.value as TaskStatus;
-                  const previous = task.status;
-                  onStatus(status);
-                  toast.success(`Status updated to ${statusOptions.find((option) => option.value === status)?.label ?? status}`);
-                  void updateTaskAction(task.id, { status }).then((result) => {
-                    if (result.error) {
-                      onStatus(previous);
-                      toast.error(result.error);
-                    }
-                  });
-                }}
-              >
-                {statusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            ) : (
-              <Badge className={cn("border-transparent", statusStyles[task.status])}>{statusLabel}</Badge>
-            )}
+            <Badge className={cn("border-transparent", statusStyles[task.status])}>{statusLabel}</Badge>
             {task.completed_late ? (
               <Badge className="border-amber-200 bg-amber-50 text-amber-800">
                 Completed late{task.days_late ? ` · ${task.days_late} day${task.days_late === 1 ? "" : "s"}` : ""}
