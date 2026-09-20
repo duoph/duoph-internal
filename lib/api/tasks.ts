@@ -193,11 +193,18 @@ export const taskService = {
     if (writes.length) {
       await db.collection<TaskDoc>(COL.tasks).bulkWrite(writes);
     }
-    await taskScoreService.recompute();
+  },
+
+  async get(id: string): Promise<TaskRow | null> {
+    if (!ObjectId.isValid(id)) return null;
+    const db = await getDb();
+    const doc = await db
+      .collection<TaskDoc>(COL.tasks)
+      .findOne({ _id: new ObjectId(id), deleted_at: null });
+    return doc ? toRow(doc) : null;
   },
 
   async list(params: TaskListParams): Promise<TaskWithRelations[]> {
-    await this.reconcileMissedDeadlines();
     const filter: Record<string, unknown> = { deleted_at: null };
     if (!params.canViewAll) {
       filter.$or = [{ assignee_ids: params.viewerId }, { created_by: params.viewerId }];
@@ -257,7 +264,7 @@ export const taskService = {
       daysLate: deadline.days_late,
       scorePoints: deadline.score_points,
     });
-    await taskScoreService.recompute();
+    void taskScoreService.recompute();
     return result.insertedId.toString();
   },
 
@@ -313,7 +320,13 @@ export const taskService = {
       daysLate: deadline.days_late,
       scorePoints: deadline.score_points,
     });
-    await taskScoreService.recompute();
+    const scoresNeedRefresh = Boolean(
+      input.status !== undefined ||
+        input.due_date !== undefined ||
+        input.assignee_ids !== undefined ||
+        (input.priority !== undefined && nextStatus === "completed"),
+    );
+    if (scoresNeedRefresh) void taskScoreService.recompute();
   },
 
   async activity(taskId: string): Promise<TaskActivityRow[]> {
@@ -360,7 +373,7 @@ export const taskService = {
       .collection<TaskDoc>(COL.tasks)
       .updateOne({ _id: new ObjectId(id) }, { $set: { deleted_at: new Date(), updated_at: new Date() } });
     await recordActivity(id, actorId, "deleted");
-    await taskScoreService.recompute();
+    void taskScoreService.recompute();
   },
 };
 

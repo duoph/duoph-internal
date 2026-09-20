@@ -320,12 +320,8 @@ export function TaskView({
                         <TaskRow
                           key={task.id}
                           task={task}
-                          canManage={canManage || task.created_by === currentUserId}
-                          canUpdateStatus={
-                            canManage ||
-                            task.created_by === currentUserId ||
-                            task.assignee_ids.includes(currentUserId)
-                          }
+                          canEdit={task.created_by === currentUserId}
+                          canDelete={canManage || task.created_by === currentUserId}
                           today={today}
                           onEdit={() => {
                             setSelected(task);
@@ -384,7 +380,7 @@ export function TaskView({
         open={Boolean(detailTask)}
         task={detailTask}
         activity={activity}
-        canManage={canManage || detailTask?.created_by === currentUserId}
+        canEdit={detailTask?.created_by === currentUserId}
         onClose={() => {
           setDetailTask(null);
           setActivity(null);
@@ -417,36 +413,25 @@ export function TaskView({
 
 function TaskRow({
   task,
-  canManage,
-  canUpdateStatus,
+  canEdit,
+  canDelete,
   today,
   onEdit,
   onOpen,
   onDelete,
 }: {
   task: TaskWithRelations;
-  canManage: boolean;
-  canUpdateStatus: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   today: string;
   onEdit: () => void;
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const overdue = isOverdue(task, today);
   const assignee = task.assignees[0];
-
-  function patch(input: { status?: TaskStatus; priority?: TaskPriority }) {
-    startTransition(async () => {
-      const result = await updateTaskAction(task.id, input);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
+  const statusLabel = statusOptions.find((option) => option.value === task.status)?.label ?? task.status;
+  const priorityLabel = priorityOptions.find((option) => option.value === task.priority)?.label ?? task.priority;
 
   return (
     <div
@@ -454,12 +439,7 @@ function TaskRow({
         "group grid cursor-pointer items-center gap-3 border-t border-[var(--color-border-subtle)] px-4 py-2.5 hover:bg-slate-50/80",
         TABLE_COLS,
       )}
-      role="button"
-      tabIndex={0}
       onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) onOpen();
-      }}
     >
       <span className={cn(
         "truncate text-sm",
@@ -481,21 +461,12 @@ function TaskRow({
         ) : null}
       </div>
 
-      <select
-        value={task.status}
-        disabled={!canUpdateStatus || pending}
-        aria-label={`Status for ${task.title}`}
-        className={cn(
-          "h-7 w-full appearance-none rounded-full border-0 px-2.5 text-left text-[11px] font-semibold outline-none",
-          statusStyles[task.status],
-        )}
-        onClick={(event) => event.stopPropagation()}
-        onChange={(event) => patch({ status: event.target.value as TaskStatus })}
-      >
-        {statusOptions.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+      <span className={cn(
+        "inline-flex h-7 w-full items-center rounded-full px-2.5 text-[11px] font-semibold",
+        statusStyles[task.status],
+      )}>
+        {statusLabel}
+      </span>
 
       <div className="flex min-w-0 items-center gap-2">
         {assignee ? (
@@ -513,29 +484,22 @@ function TaskRow({
         )}
       </div>
 
-      <select
-        value={task.priority}
-        disabled={!canUpdateStatus || pending}
-        aria-label={`Priority for ${task.title}`}
-        className={cn(
-          "h-7 w-full appearance-none rounded-md border-0 px-2 text-left text-[11px] font-semibold outline-none",
-          priorityStyles[task.priority],
-        )}
-        onClick={(event) => event.stopPropagation()}
-        onChange={(event) => patch({ priority: event.target.value as TaskPriority })}
-      >
-        {priorityOptions.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+      <span className={cn(
+        "inline-flex h-7 w-full items-center rounded-md px-2 text-[11px] font-semibold",
+        priorityStyles[task.priority],
+      )}>
+        {priorityLabel}
+      </span>
 
       <p className={cn("truncate text-sm text-[var(--color-text-muted)]", task.status === "completed" && "line-through")}>{task.description || ""}</p>
 
       <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
-        <RowActions
-          onEdit={onEdit}
-          onDelete={canManage ? onDelete : undefined}
-        />
+        {canEdit || canDelete ? (
+          <RowActions
+            onEdit={canEdit ? onEdit : undefined}
+            onDelete={canDelete ? onDelete : undefined}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -545,14 +509,14 @@ function TaskDetailModal({
   open,
   task,
   activity,
-  canManage,
+  canEdit,
   onClose,
   onEdit,
 }: {
   open: boolean;
   task: TaskWithRelations | null;
   activity: TaskActivityRow[] | null;
-  canManage: boolean;
+  canEdit: boolean;
   onClose: () => void;
   onEdit: () => void;
 }) {
@@ -692,7 +656,7 @@ function TaskDetailModal({
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
-          {canManage ? <Button type="button" onClick={onEdit}>Edit task</Button> : null}
+          {canEdit ? <Button type="button" onClick={onEdit}>Edit task</Button> : null}
         </div>
       </div>
     </Modal>

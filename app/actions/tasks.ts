@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentUser, canManageTasks } from "@/lib/auth/authorization";
+import { getCurrentUser, canAccessTask, canEditTask, canManageTasks } from "@/lib/auth/authorization";
 import { dbErrorMessage } from "@/lib/db/error-message";
 import { taskService } from "@/lib/api/tasks";
 import type { TaskPriority, TaskStatus } from "@/lib/types/database";
@@ -21,10 +21,12 @@ const taskSchema = z.object({
   tags: z.array(z.string()).max(12),
 });
 
-function revalidateTasks() {
+function revalidateTasks(scope: "task" | "all" = "all") {
   revalidatePath("/tasks");
-  revalidatePath("/analytics");
-  revalidatePath("/dashboard");
+  if (scope === "all") {
+    revalidatePath("/analytics");
+    revalidatePath("/dashboard");
+  }
 }
 
 export async function createTaskAction(input: z.input<typeof taskSchema>) {
@@ -60,21 +62,10 @@ export async function updateTaskAction(
   const user = await getCurrentUser();
   if (!user) return { error: "Unauthorized" };
 
-  if (!canManageTasks(user)) {
-    const visible = await taskService.list({ viewerId: user.id, canViewAll: false });
-    const task = visible.find((item) => item.id === id);
-    if (!task) return { error: "You do not have permission to update this task." };
-    if (task.created_by !== user.id) {
-      const keys = Object.keys(input);
-      if (
-        !task.assignee_ids.includes(user.id) ||
-        keys.some((key) => key !== "status") ||
-        !input.status ||
-        !statuses.includes(input.status)
-      ) {
-        return { error: "You can only update the status of tasks assigned to you." };
-      }
-    }
+  const current = await taskService.get(id);
+  if (!current) return { error: "Task not found." };
+  if (!canEditTask(user, current)) {
+    return { error: "Only the person who created this task can edit it." };
   }
 
   const patchSchema = taskSchema.partial();
@@ -98,7 +89,9 @@ export async function updateTaskAction(
       },
       user.id,
     );
-    revalidateTasks();
+    const keys = Object.keys(parsed.data);
+    const fieldPatch = keys.length > 0 && keys.every((key) => key === "status" || key === "priority");
+    if (!fieldPatch) revalidateTasks("all");
     return { ok: true as const };
   } catch (error) {
     return { error: dbErrorMessage(error) };
@@ -109,12 +102,10 @@ export async function deleteTaskAction(id: string) {
   const user = await getCurrentUser();
   if (!user) return { error: "Unauthorized" };
 
-  if (!canManageTasks(user)) {
-    const visible = await taskService.list({ viewerId: user.id, canViewAll: false });
-    const task = visible.find((item) => item.id === id);
-    if (!task || task.created_by !== user.id) {
-      return { error: "You can only delete tasks that you created." };
-    }
+  const current = await taskService.get(id);
+  if (!current) return { error: "Task not found." };
+  if (!canManageTasks(user) && current.created_by !== user.id) {
+    return { error: "You can only delete tasks that you created." };
   }
 
   try {
@@ -130,11 +121,8 @@ export async function getTaskActivityAction(id: string) {
   const user = await getCurrentUser();
   if (!user) return { error: "Unauthorized" };
 
-  const visible = await taskService.list({
-    viewerId: user.id,
-    canViewAll: canManageTasks(user),
-  });
-  if (!visible.some((task) => task.id === id)) {
+  const current = await taskService.get(id);
+  if (!current || !canAccessTask(user, current)) {
     return { error: "You do not have permission to view this task." };
   }
 

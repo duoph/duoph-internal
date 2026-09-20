@@ -36,6 +36,17 @@ export function canManageTasks(user: CurrentUser) {
   return user.role === "admin" || user.role === "manager";
 }
 
+export function canAccessTask(
+  user: CurrentUser,
+  task: { created_by: string; assignee_ids: string[] },
+) {
+  return canManageTasks(user) || task.created_by === user.id || task.assignee_ids.includes(user.id);
+}
+
+export function canEditTask(user: CurrentUser, task: { created_by: string }) {
+  return task.created_by === user.id;
+}
+
 export function canViewTeamAnalytics(user: CurrentUser) {
   return Boolean(user);
 }

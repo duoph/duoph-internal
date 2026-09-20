@@ -41,6 +41,7 @@ function toMember(doc: TaskScoreDoc) {
 
 export const taskAnalyticsService = {
   async get(access: TaskAnalyticsAccess) {
+    await taskService.reconcileMissedDeadlines();
     const [tasks, scoreDocs] = await Promise.all([
       taskService.list(access),
       taskScoreService.list(),
