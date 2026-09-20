@@ -12,3 +12,8 @@ export function formatDate(iso: string) {
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+export function formatFriendlyDate(iso: string) {
+  const d = new Date(iso + (iso.length === 10 ? "T00:00:00Z" : ""));
+  return new Intl.DateTimeFormat("en", { month: "long", day: "numeric", timeZone: "UTC" }).format(d);
+}

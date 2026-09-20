@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -12,12 +12,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeaderActions } from "@/components/layout/page-chrome";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { formatDate } from "@/lib/utils/format";
+import { RowActions } from "@/components/ui/row-actions";
+import { formatDate, formatFriendlyDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import type {
   TaskActivityRow,
@@ -27,10 +27,10 @@ import type {
 } from "@/lib/types/database";
 
 const statusOptions: { value: TaskStatus; label: string }[] = [
-  { value: "todo", label: "To do" },
+  { value: "todo", label: "Not started" },
   { value: "in_progress", label: "In progress" },
   { value: "in_review", label: "In review" },
-  { value: "completed", label: "Completed" },
+  { value: "completed", label: "Done" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
@@ -41,12 +41,23 @@ const priorityOptions: { value: TaskPriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ];
 
-const priorityStyles: Record<TaskPriority, string> = {
-  low: "border-slate-200 bg-slate-50 text-slate-600",
-  medium: "border-emerald-200 bg-emerald-50 text-[var(--color-primary)]",
-  high: "border-amber-200 bg-amber-50 text-amber-700",
-  urgent: "border-rose-200 bg-rose-50 text-rose-700",
+const statusStyles: Record<TaskStatus, string> = {
+  todo: "bg-slate-100 text-slate-600",
+  in_progress: "bg-sky-100 text-sky-700",
+  in_review: "bg-violet-100 text-violet-700",
+  completed: "bg-emerald-100 text-[var(--color-primary)]",
+  cancelled: "bg-slate-100 text-slate-400",
 };
+
+const priorityStyles: Record<TaskPriority, string> = {
+  low: "bg-slate-100 text-slate-600",
+  medium: "bg-amber-100 text-amber-800",
+  high: "bg-rose-100 text-rose-700",
+  urgent: "bg-rose-200 text-rose-800",
+};
+
+const TABLE_COLS =
+  "grid-cols-[7.25rem_minmax(16rem,1.6fr)_9.25rem_minmax(10rem,0.95fr)_7.5rem_minmax(8rem,1fr)_2.5rem]";
 
 function isOverdue(task: TaskWithRelations, today: string) {
   return Boolean(
@@ -71,6 +82,32 @@ type UserOption = {
   activeTasks: number;
 };
 type ClientOption = { id: string; client_name: string };
+type TaskFilters = { status?: string; assignee?: string; due?: string; client?: string };
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-subtle)] bg-white px-2.5 text-xs text-[var(--color-text-secondary)]">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="max-w-36 bg-transparent font-medium text-[var(--color-text-primary)] outline-none"
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
 
 export function TaskView({
   tasks,
@@ -86,88 +123,106 @@ export function TaskView({
   clients: ClientOption[];
   canManage: boolean;
   currentUserId: string;
-  filters: { q?: string; status?: string; priority?: string; assignee?: string };
+  filters: TaskFilters;
   today: string;
 }) {
   const router = useRouter();
   const [editor, setEditor] = useState<"create" | "edit" | null>(null);
   const [selected, setSelected] = useState<TaskWithRelations | null>(null);
+  const [draftClientId, setDraftClientId] = useState("");
+  const [draftDueDate, setDraftDueDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRelations | null>(null);
   const [detailTask, setDetailTask] = useState<TaskWithRelations | null>(null);
   const [activity, setActivity] = useState<TaskActivityRow[] | null>(null);
-  const [scope, setScope] = useState<"all" | "assigned" | "created">(canManage ? "all" : "assigned");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const active = tasks.filter((task) => task.status !== "completed" && task.status !== "cancelled").length;
-  const overdue = tasks.filter((task) => isOverdue(task, today)).length;
-  const dueSoon = tasks.filter((task) => {
-    if (!task.due_date || task.status === "completed" || task.status === "cancelled") return false;
-    const diff =
-      new Date(`${task.due_date}T23:59:59Z`).getTime() -
-      new Date(`${today}T00:00:00Z`).getTime();
-    return diff >= 0 && diff <= 3 * 24 * 60 * 60 * 1000;
-  }).length;
-  const scopedTasks = tasks.filter((task) => {
-    if (scope === "all") return true;
-    if (scope === "assigned") return task.assignee_ids.includes(currentUserId);
-    return task.created_by === currentUserId;
-  });
   const nextWeek = dateInDays(today, 7);
-  const taskGroups = [
-    {
-      key: "overdue",
-      label: "Overdue",
-      rows: scopedTasks.filter((task) => isOverdue(task, today)),
-    },
-    {
-      key: "week",
-      label: "This week",
-      rows: scopedTasks.filter(
-        (task) =>
-          task.status !== "completed" &&
-          task.status !== "cancelled" &&
-          Boolean(task.due_date && task.due_date >= today && task.due_date <= nextWeek),
-      ),
-    },
-    {
-      key: "later",
-      label: "Later",
-      rows: scopedTasks.filter(
-        (task) =>
-          task.status !== "completed" &&
-          task.status !== "cancelled" &&
-          Boolean(task.due_date && task.due_date > nextWeek),
-      ),
-    },
-    {
-      key: "undated",
-      label: "No due date",
-      rows: scopedTasks.filter(
-        (task) =>
-          task.status !== "completed" &&
-          task.status !== "cancelled" &&
-          !task.due_date,
-      ),
-    },
-    {
-      key: "completed",
-      label: "Completed",
-      rows: scopedTasks.filter((task) => task.status === "completed"),
-    },
-    {
-      key: "cancelled",
-      label: "Cancelled",
-      rows: scopedTasks.filter((task) => task.status === "cancelled"),
-    },
-  ].filter((group) => group.rows.length > 0);
-  const hasFilters = Boolean(filters.q || filters.status || filters.priority || filters.assignee);
+  const filteredTasks = tasks.filter((task) => {
+    if (filters.status && task.status !== filters.status) return false;
+    if (filters.assignee === "me" && !task.assignee_ids.includes(currentUserId)) return false;
+    if (filters.assignee === "created" && task.created_by !== currentUserId) return false;
+    if (
+      filters.assignee &&
+      filters.assignee !== "me" &&
+      filters.assignee !== "created" &&
+      !task.assignee_ids.includes(filters.assignee)
+    ) {
+      return false;
+    }
+    if (filters.client === "none" && task.client_id) return false;
+    if (filters.client && filters.client !== "none" && task.client_id !== filters.client) return false;
+    if (filters.due === "overdue") return isOverdue(task, today);
+    if (filters.due === "today") return task.due_date === today;
+    if (filters.due === "week") {
+      return Boolean(task.due_date && task.due_date >= today && task.due_date <= nextWeek);
+    }
+    if (filters.due === "later") return Boolean(task.due_date && task.due_date > nextWeek);
+    if (filters.due === "none") return !task.due_date;
+    return true;
+  });
 
-  function applyFilters(formData: FormData) {
+  const groups = (() => {
+    const isOpen = (task: TaskWithRelations) =>
+      task.status !== "completed" && task.status !== "cancelled";
+    const historyDate = (task: TaskWithRelations) =>
+      task.due_date ?? task.completed_at?.slice(0, 10) ?? task.created_at.slice(0, 10);
+
+    const overdueRows = filteredTasks.filter((task) => isOverdue(task, today));
+    const openUpcoming = filteredTasks.filter(
+      (task) => isOpen(task) && !isOverdue(task, today) && Boolean(task.due_date && task.due_date >= today),
+    );
+    const openUndated = filteredTasks.filter((task) => isOpen(task) && !task.due_date);
+    const previousRows = filteredTasks.filter(
+      (task) => !isOverdue(task, today) && !openUpcoming.includes(task) && !openUndated.includes(task),
+    );
+
+    function groupsByDate(rows: TaskWithRelations[], direction: "asc" | "desc", prefix: string) {
+      const map = new Map<string, TaskWithRelations[]>();
+      for (const task of rows) {
+        const date = task.due_date ?? historyDate(task);
+        const list = map.get(date) ?? [];
+        list.push(task);
+        map.set(date, list);
+      }
+      return [...map.entries()]
+        .sort(([a], [b]) => (direction === "asc" ? a.localeCompare(b) : b.localeCompare(a)))
+        .map(([date, list]) => ({
+          key: `${prefix}-${date}`,
+          label: date === today ? "Today" : formatFriendlyDate(date),
+          dueDate: date,
+          rows: list,
+        }));
+    }
+
+    const previous = groupsByDate(previousRows, "desc", "prev").map((group) => ({
+      ...group,
+      label: group.dueDate === today ? "Done today" : formatFriendlyDate(group.dueDate),
+    }));
+
+    return [
+      overdueRows.length ? { key: "overdue", label: "Overdue", dueDate: "", rows: overdueRows } : null,
+      ...groupsByDate(openUpcoming, "asc", "open"),
+      openUndated.length ? { key: "none", label: "No date", dueDate: "", rows: openUndated } : null,
+      ...previous,
+    ].filter((group): group is { key: string; label: string; dueDate: string; rows: TaskWithRelations[] } => Boolean(group));
+  })();
+
+  const hasFilters = Boolean(filters.status || filters.assignee || filters.due || filters.client);
+
+  function setFilter(key: keyof TaskFilters, value: string) {
+    const next = { ...filters, [key]: value || undefined };
     const params = new URLSearchParams();
-    for (const key of ["q", "status", "priority", "assignee"]) {
-      const value = String(formData.get(key) ?? "").trim();
-      if (value) params.set(key, value);
+    for (const [name, param] of Object.entries(next)) {
+      if (param) params.set(name, param);
     }
     router.push(`/tasks${params.size ? `?${params.toString()}` : ""}`);
+  }
+
+  function openCreate(clientId = "", dueDate = "") {
+    setSelected(null);
+    setDraftClientId(clientId);
+    setDraftDueDate(dueDate);
+    setEditor("create");
   }
 
   async function openTaskDetail(task: TaskWithRelations) {
@@ -183,133 +238,145 @@ export function TaskView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5">
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeaderActions>
-        <Button type="button" className="h-9 px-3.5 py-0 text-xs" onClick={() => setEditor("create")}>
+        <Button type="button" className="h-9 px-3.5 py-0 text-xs" onClick={() => openCreate()}>
           <span aria-hidden>＋</span> New task
         </Button>
       </PageHeaderActions>
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 shadow-none">
-        <div className="flex shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-[var(--color-border-subtle)] px-3 py-2">
-          <div className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">
-            {([
-              ...(canManage ? [{ key: "all" as const, label: "All tasks", count: tasks.length }] : []),
-              {
-                key: "assigned" as const,
-                label: "Assigned to me",
-                count: tasks.filter((task) => task.assignee_ids.includes(currentUserId)).length,
-              },
-              {
-                key: "created" as const,
-                label: "Assigned by me",
-                count: tasks.filter((task) => task.created_by === currentUserId).length,
-              },
-            ]).map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setScope(item.key)}
-                className={cn(
-                  "whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] font-semibold transition",
-                  scope === item.key
-                    ? "bg-white text-[var(--color-primary)] shadow-sm"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]",
-                )}
-              >
-                {item.label} <span className="ml-1 font-normal">{item.count}</span>
-              </button>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-white">
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-[var(--color-border-subtle)] px-3 py-2">
+          <FilterSelect label="Assigned For" value={filters.assignee ?? ""} onChange={(value) => setFilter("assignee", value)}>
+            <option value="">Anyone</option>
+            <option value="me">Me</option>
+            <option value="created">Assigned by me</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>{user.name}</option>
             ))}
-          </div>
-        <form action={applyFilters} className="flex shrink-0 items-center gap-1.5">
-          <div className="w-48">
-            <Input name="q" defaultValue={filters.q} placeholder="Search tasks…" aria-label="Search tasks" className="h-9 py-1.5 text-xs" />
-          </div>
-          <div className="w-32">
-          <Select name="status" defaultValue={filters.status ?? ""} aria-label="Filter by status" className="h-9 py-1.5 text-xs">
-            <option value="">All statuses</option>
+          </FilterSelect>
+          <FilterSelect label="Status" value={filters.status ?? ""} onChange={(value) => setFilter("status", value)}>
+            <option value="">Any</option>
             {statusOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </Select>
-          </div>
-          <div className="w-28">
-          <Select name="priority" defaultValue={filters.priority ?? ""} aria-label="Filter by priority" className="h-9 py-1.5 text-xs">
-            <option value="">All priorities</option>
-            {priorityOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+          </FilterSelect>
+          <FilterSelect label="Due" value={filters.due ?? ""} onChange={(value) => setFilter("due", value)}>
+            <option value="">Any date</option>
+            <option value="overdue">Overdue</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="later">Later</option>
+            <option value="none">No date</option>
+          </FilterSelect>
+          <FilterSelect label="Project" value={filters.client ?? ""} onChange={(value) => setFilter("client", value)}>
+            <option value="">All</option>
+            <option value="none">No project</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>{client.client_name}</option>
             ))}
-          </Select>
-          </div>
-          <input type="hidden" name="assignee" value={filters.assignee ?? ""} />
-          <Button type="submit" variant="secondary" className="h-9 px-3 py-1.5 text-xs">Apply</Button>
+          </FilterSelect>
           {hasFilters ? (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              className="h-9 px-2 py-1.5 text-xs"
+              className="ml-auto shrink-0 px-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
               onClick={() => router.push("/tasks")}
             >
-              Clear
-            </Button>
+              Reset
+            </button>
           ) : null}
-        </form>
         </div>
 
-        <div className="hidden shrink-0 grid-cols-[minmax(280px,1fr)_minmax(150px,0.45fr)_120px_140px_64px] gap-4 border-b border-[var(--color-border-subtle)] bg-slate-50/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)] lg:grid">
-          <span>Task</span>
-          <span>Person</span>
-          <span>Due date</span>
-          <span>Status</span>
-          <span />
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {taskGroups.length ? taskGroups.map((group) => (
-            <section key={group.key}>
-              <div className="sticky top-0 z-10 flex items-center gap-2 border-y border-[var(--color-border-subtle)] bg-slate-50 px-4 py-2">
-                <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">{group.label}</h2>
-                <span className="text-[10px] text-[var(--color-text-muted)]">{group.rows.length}</span>
-              </div>
-              {group.rows.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  canManage={canManage || task.created_by === currentUserId}
-                  canUpdateStatus={
-                    canManage ||
-                    task.created_by === currentUserId ||
-                    task.assignee_ids.includes(currentUserId)
-                  }
-                  today={today}
-                  onEdit={() => {
-                    setSelected(task);
-                    setEditor("edit");
-                  }}
-                  onOpen={() => void openTaskDetail(task)}
-                  onDelete={() => setDeleteTarget(task)}
-                />
-              ))}
-            </section>
-          )) : (
-            <div className="flex h-full min-h-56 flex-col items-center justify-center text-center">
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">✓</span>
-              <h2 className="text-sm font-semibold">No tasks in this view</h2>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Create a task or change the current filters.</p>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-w-[920px]">
+            <div className={cn("sticky top-0 z-20 grid items-center gap-3 border-b border-[var(--color-border-subtle)] bg-white px-4 py-2.5 text-[11px] text-[var(--color-text-muted)]", TABLE_COLS)}>
+              <span>Date</span>
+              <span>Task name</span>
+              <span>Status</span>
+              <span>Assigned For</span>
+              <span>Priority</span>
+              <span>Summary</span>
+              <span />
             </div>
-          )}
+
+            {groups.length ? groups.map((group) => {
+              const isCollapsed = collapsed[group.key];
+              const completed = group.rows.filter((task) => task.status === "completed").length;
+              const canAddHere = group.key !== "overdue" && (!group.dueDate || group.dueDate >= today);
+              return (
+                <section key={group.key}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-50/80"
+                    onClick={() => setCollapsed((current) => ({ ...current, [group.key]: !current[group.key] }))}
+                  >
+                    <span className="text-[11px] text-[var(--color-text-muted)]">{isCollapsed ? "▶" : "▼"}</span>
+                    <span className={cn("text-sm font-semibold", group.key === "overdue" ? "text-rose-700" : "text-[var(--color-text-primary)]")}>{group.label}</span>
+                    <span className="text-xs text-[var(--color-text-muted)]">{group.rows.length}</span>
+                  </button>
+                  {isCollapsed ? null : (
+                    <>
+                      {group.rows.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          canManage={canManage || task.created_by === currentUserId}
+                          canUpdateStatus={
+                            canManage ||
+                            task.created_by === currentUserId ||
+                            task.assignee_ids.includes(currentUserId)
+                          }
+                          today={today}
+                          onEdit={() => {
+                            setSelected(task);
+                            setEditor("edit");
+                          }}
+                          onOpen={() => void openTaskDetail(task)}
+                          onDelete={() => setDeleteTarget(task)}
+                        />
+                      ))}
+                      {canAddHere ? (
+                        <div className={cn("grid items-center gap-3 px-4 py-1.5", TABLE_COLS)}>
+                          <span />
+                          <button
+                            type="button"
+                            className="text-left text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                            onClick={() => openCreate("", group.dueDate)}
+                          >
+                            + New task
+                          </button>
+                        </div>
+                      ) : null}
+                      <p className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+                        Complete {completed}/{group.rows.length}
+                      </p>
+                    </>
+                  )}
+                </section>
+              );
+            }) : (
+              <div className="flex min-h-56 flex-col items-center justify-center text-center">
+                <h2 className="text-sm font-semibold">No tasks in this view</h2>
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">Create a task or reset the filters.</p>
+              </div>
+            )}
+          </div>
         </div>
-      </Card>
+      </div>
 
       <TaskEditor
-        key={selected?.id ?? editor ?? "closed"}
+        key={`${selected?.id ?? editor ?? "closed"}-${draftClientId}-${draftDueDate}`}
         open={editor !== null}
         task={editor === "edit" ? selected : null}
         users={users}
         clients={clients}
+        defaultClientId={draftClientId}
+        defaultDueDate={draftDueDate}
         onClose={() => {
           setEditor(null);
           setSelected(null);
+          setDraftClientId("");
+          setDraftDueDate("");
         }}
       />
 
@@ -368,10 +435,11 @@ function TaskRow({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const overdue = isOverdue(task, today);
+  const assignee = task.assignees[0];
 
-  function changeStatus(status: TaskStatus) {
+  function patch(input: { status?: TaskStatus; priority?: TaskPriority }) {
     startTransition(async () => {
-      const result = await updateTaskAction(task.id, { status });
+      const result = await updateTaskAction(task.id, input);
       if (result.error) {
         toast.error(result.error);
         return;
@@ -382,7 +450,10 @@ function TaskRow({
 
   return (
     <div
-      className="group grid cursor-pointer gap-3 border-b border-[var(--color-border-subtle)] px-4 py-3 transition hover:bg-slate-50/70 lg:grid-cols-[minmax(280px,1fr)_minmax(150px,0.45fr)_120px_140px_64px] lg:items-center lg:gap-4"
+      className={cn(
+        "group grid cursor-pointer items-center gap-3 border-t border-[var(--color-border-subtle)] px-4 py-2.5 hover:bg-slate-50/80",
+        TABLE_COLS,
+      )}
       role="button"
       tabIndex={0}
       onClick={onOpen}
@@ -390,110 +461,81 @@ function TaskRow({
         if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) onOpen();
       }}
     >
-      <div className="flex min-w-0 items-start gap-3">
-        <button
-          type="button"
-          disabled={!canUpdateStatus || pending}
-          onClick={(event) => {
-            event.stopPropagation();
-            changeStatus(task.status === "completed" ? "todo" : "completed");
-          }}
-          className={cn(
-            "mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]",
-            task.status === "completed"
-              ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-              : "border-[var(--color-border-default)] bg-white text-transparent",
-          )}
-          aria-label={task.status === "completed" ? `Mark ${task.title} incomplete` : `Complete ${task.title}`}
-        >
-          ✓
-        </button>
-        <div className="min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-              {task.id.slice(-6).toUpperCase()}
-            </span>
-            {task.priority !== "medium" ? <Badge className={cn("px-1.5 py-0 text-[9px]", priorityStyles[task.priority])}>{task.priority}</Badge> : null}
-            {task.completed_late ? (
-              <Badge className="border-amber-200 bg-amber-50 px-1.5 py-0 text-[9px] text-amber-800">
-                Completed late{task.days_late ? ` · ${task.days_late}d` : ""}
-              </Badge>
-            ) : task.first_missed_at ? (
-              <Badge className="border-rose-200 bg-rose-50 px-1.5 py-0 text-[9px] text-rose-700">Missed</Badge>
-            ) : null}
-          </div>
-          <p className={cn("truncate text-sm font-medium", task.status === "completed" && "text-[var(--color-text-muted)] line-through")}>
-            {task.title}
-          </p>
-          {task.description ? <p className="mt-0.5 truncate text-[11px] text-[var(--color-text-muted)]">{task.description}</p> : null}
-          {task.client ? <p className="mt-0.5 truncate text-[10px] text-[var(--color-primary)]">{task.client.client_name}</p> : null}
-        </div>
-      </div>
+      <span className={cn(
+        "truncate text-sm",
+        overdue ? "font-medium text-rose-600" : "text-[var(--color-text-secondary)]",
+        task.status === "completed" && "text-[var(--color-text-muted)] line-through",
+      )}>
+        {task.due_date ? formatFriendlyDate(task.due_date) : ""}
+      </span>
 
       <div className="flex min-w-0 items-center gap-2">
-        {task.assignees.slice(0, 2).map((user) => (
-          <span
-            key={user.id}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[9px] font-bold text-[var(--color-primary)]"
-            title={user.name}
-          >
-            {user.name.slice(0, 2).toUpperCase()}
+        <span className="shrink-0 text-[var(--color-text-muted)]" aria-hidden>📄</span>
+        <p className={cn("truncate text-sm font-medium", task.status === "completed" && "text-[var(--color-text-muted)] line-through")}>
+          {task.title}
+        </p>
+        {overdue ? (
+          <span className="rounded border border-slate-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+            Open
           </span>
-        ))}
-        <span className="truncate text-xs text-[var(--color-text-secondary)]">
-          {task.assignees.length ? task.assignees.map((user) => user.name).join(", ") : "Unassigned"}
-        </span>
+        ) : null}
       </div>
 
-      <div>
-        <span className={cn(
-          "inline-flex rounded-md px-2 py-1 text-[10px] font-medium",
-          overdue
-            ? "bg-rose-50 text-rose-700"
-            : task.due_date
-              ? "bg-slate-100 text-[var(--color-text-secondary)]"
-              : "text-[var(--color-text-muted)]",
-        )}>
-          {task.due_date ? formatDate(task.due_date) : "No date"}
-        </span>
-      </div>
-
-      <Select
+      <select
         value={task.status}
         disabled={!canUpdateStatus || pending}
-        className="w-full py-1.5 text-xs"
         aria-label={`Status for ${task.title}`}
+        className={cn(
+          "h-7 w-full appearance-none rounded-full border-0 px-2.5 text-left text-[11px] font-semibold outline-none",
+          statusStyles[task.status],
+        )}
         onClick={(event) => event.stopPropagation()}
-        onChange={(event) => changeStatus(event.target.value as TaskStatus)}
+        onChange={(event) => patch({ status: event.target.value as TaskStatus })}
       >
-        {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </Select>
+        {statusOptions.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
 
-      <div className="flex justify-end gap-1">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onEdit();
-          }}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-primary)]"
-          aria-label={`Edit ${task.title}`}
-        >
-          ›
-        </button>
-        {canManage ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            className="hidden h-8 w-8 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 group-hover:flex"
-            aria-label={`Delete ${task.title}`}
-          >
-            ×
-          </button>
-        ) : null}
+      <div className="flex min-w-0 items-center gap-2">
+        {assignee ? (
+          <>
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[9px] font-bold text-[var(--color-primary)]">
+              {assignee.name.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="truncate text-sm text-[var(--color-text-secondary)]">
+              {assignee.name}
+              {task.assignees.length > 1 ? ` +${task.assignees.length - 1}` : ""}
+            </span>
+          </>
+        ) : (
+          <span className="text-sm text-[var(--color-text-muted)]"> </span>
+        )}
+      </div>
+
+      <select
+        value={task.priority}
+        disabled={!canUpdateStatus || pending}
+        aria-label={`Priority for ${task.title}`}
+        className={cn(
+          "h-7 w-full appearance-none rounded-md border-0 px-2 text-left text-[11px] font-semibold outline-none",
+          priorityStyles[task.priority],
+        )}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => patch({ priority: event.target.value as TaskPriority })}
+      >
+        {priorityOptions.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+
+      <p className={cn("truncate text-sm text-[var(--color-text-muted)]", task.status === "completed" && "line-through")}>{task.description || ""}</p>
+
+      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+        <RowActions
+          onEdit={onEdit}
+          onDelete={canManage ? onDelete : undefined}
+        />
       </div>
     </div>
   );
@@ -555,8 +597,8 @@ function TaskDetailModal({
       <div className="space-y-6">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge className={priorityStyles[task.priority]}>{task.priority} priority</Badge>
-            <Badge className="border-emerald-200 bg-emerald-50 text-[var(--color-primary)]">{statusLabel}</Badge>
+            <Badge className={cn("border-transparent", priorityStyles[task.priority])}>{task.priority} priority</Badge>
+            <Badge className={cn("border-transparent", statusStyles[task.status])}>{statusLabel}</Badge>
             {task.completed_late ? (
               <Badge className="border-amber-200 bg-amber-50 text-amber-800">
                 Completed late{task.days_late ? ` · ${task.days_late} day${task.days_late === 1 ? "" : "s"}` : ""}
@@ -565,9 +607,9 @@ function TaskDetailModal({
               <Badge className="border-rose-200 bg-rose-50 text-rose-700">Missed deadline</Badge>
             ) : null}
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">{task.title}</h2>
+          <h2 className={cn("text-xl font-semibold tracking-tight", task.status === "completed" && "text-[var(--color-text-muted)] line-through")}>{task.title}</h2>
           {task.description ? (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]">{task.description}</p>
+            <p className={cn("mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]", task.status === "completed" && "line-through")}>{task.description}</p>
           ) : <p className="mt-2 text-sm text-[var(--color-text-muted)]">No description provided.</p>}
         </div>
 
@@ -591,14 +633,14 @@ function TaskDetailModal({
           <div>
             <p className="field-label">Assigned to</p>
             <div className="space-y-2">
-              {task.assignees.length ? task.assignees.map((assignee) => (
-                <div key={assignee.id} className="flex items-center gap-3 rounded-lg bg-slate-50 p-2.5">
+              {task.assignees.length ? task.assignees.map((person) => (
+                <div key={person.id} className="flex items-center gap-3 rounded-lg bg-slate-50 p-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[10px] font-bold text-[var(--color-primary)]">
-                    {assignee.name.slice(0, 2).toUpperCase()}
+                    {person.name.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-semibold">{assignee.name}</span>
-                    <span className="block truncate text-[10px] text-[var(--color-text-muted)]">{assignee.email}</span>
+                    <span className="block truncate text-xs font-semibold">{person.name}</span>
+                    <span className="block truncate text-[10px] text-[var(--color-text-muted)]">{person.email}</span>
                   </span>
                 </div>
               )) : <p className="text-xs text-[var(--color-text-muted)]">Unassigned</p>}
@@ -608,16 +650,12 @@ function TaskDetailModal({
             <p className="field-label">Context</p>
             <dl className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs">
               <div className="flex justify-between gap-3">
-                <dt className="text-[var(--color-text-muted)]">Client</dt>
-                <dd className="text-right font-medium">{task.client?.client_name ?? "Internal"}</dd>
+                <dt className="text-[var(--color-text-muted)]">Project</dt>
+                <dd className="text-right font-medium">{task.client?.client_name ?? "No project"}</dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-[var(--color-text-muted)]">Last updated</dt>
                 <dd className="text-right font-medium">{dateTime(task.updated_at)}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-[var(--color-text-muted)]">Task ID</dt>
-                <dd className="font-mono text-[10px]">{task.id}</dd>
               </div>
             </dl>
           </div>
@@ -666,12 +704,16 @@ function TaskEditor({
   task,
   users,
   clients,
+  defaultClientId = "",
+  defaultDueDate = "",
   onClose,
 }: {
   open: boolean;
   task: TaskWithRelations | null;
   users: UserOption[];
   clients: ClientOption[];
+  defaultClientId?: string;
+  defaultDueDate?: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -740,20 +782,20 @@ function TaskEditor({
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="field-label" htmlFor="task-client">Client</label>
-            <Select id="task-client" name="client_id" defaultValue={task?.client_id ?? ""}>
-              <option value="">Internal / no client</option>
+            <label className="field-label" htmlFor="task-client">Project</label>
+            <Select id="task-client" name="client_id" defaultValue={task?.client_id ?? defaultClientId}>
+              <option value="">No project</option>
               {clients.map((client) => <option key={client.id} value={client.id}>{client.client_name}</option>)}
             </Select>
           </div>
           <div>
             <label className="field-label" htmlFor="task-due">Due date</label>
-            <Input id="task-due" name="due_date" type="date" defaultValue={task?.due_date ?? ""} />
+            <Input id="task-due" name="due_date" type="date" defaultValue={task?.due_date ?? defaultDueDate} />
           </div>
         </div>
         <fieldset>
           <div className="mb-1 flex items-center justify-between">
-            <legend className="field-label !mb-0">Assignees</legend>
+            <legend className="field-label !mb-0">Assigned For</legend>
             <span className="text-[11px] text-[var(--color-text-muted)]">
               {assignees.length ? `${assignees.length} selected` : "Optional"}
             </span>
@@ -811,4 +853,3 @@ function TaskEditor({
     </Modal>
   );
 }
-

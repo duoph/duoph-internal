@@ -11,10 +11,10 @@ export default async function TasksPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    q?: string;
     status?: string;
-    priority?: string;
     assignee?: string;
+    due?: string;
+    client?: string;
   }>;
 }) {
   const user = await getCurrentUser();
@@ -26,10 +26,6 @@ export default async function TasksPage({
     taskService.list({
       viewerId: user.id,
       canViewAll: manageTasks,
-      q: filters.q,
-      status: filters.status,
-      priority: filters.priority,
-      assigneeId: filters.assignee,
     }),
     listAllUsers(),
     clientService.list(),
