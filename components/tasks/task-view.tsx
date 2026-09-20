@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -84,6 +84,10 @@ type UserOption = {
 type ClientOption = { id: string; client_name: string };
 type TaskFilters = { status?: string; assignee?: string; due?: string; client?: string };
 
+function stopRowOpen(event: SyntheticEvent) {
+  event.stopPropagation();
+}
+
 function FilterSelect({
   label,
   value,
@@ -135,9 +139,18 @@ export function TaskView({
   const [detailTask, setDetailTask] = useState<TaskWithRelations | null>(null);
   const [activity, setActivity] = useState<TaskActivityRow[] | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [statusPatches, setStatusPatches] = useState<Record<string, TaskStatus>>({});
+
+  function applyStatus(taskId: string, status: TaskStatus) {
+    setStatusPatches((current) => ({ ...current, [taskId]: status }));
+    setDetailTask((current) => (current?.id === taskId ? { ...current, status } : current));
+  }
 
   const nextWeek = dateInDays(today, 7);
-  const filteredTasks = tasks.filter((task) => {
+  const filteredTasks = tasks.map((task) => {
+    const status = statusPatches[task.id];
+    return status ? { ...task, status } : task;
+  }).filter((task) => {
     if (filters.status && task.status !== filters.status) return false;
     if (filters.assignee === "me" && !task.assignee_ids.includes(currentUserId)) return false;
     if (filters.assignee === "created" && task.created_by !== currentUserId) return false;
@@ -321,8 +334,10 @@ export function TaskView({
                           key={task.id}
                           task={task}
                           canEdit={task.created_by === currentUserId}
+                          canUpdateStatus={task.assignee_ids.includes(currentUserId)}
                           canDelete={canManage || task.created_by === currentUserId}
                           today={today}
+                          onStatus={(status) => applyStatus(task.id, status)}
                           onEdit={() => {
                             setSelected(task);
                             setEditor("edit");
@@ -366,6 +381,7 @@ export function TaskView({
         task={editor === "edit" ? selected : null}
         users={users}
         clients={clients}
+        currentUserId={currentUserId}
         defaultClientId={draftClientId}
         defaultDueDate={draftDueDate}
         onClose={() => {
@@ -381,6 +397,11 @@ export function TaskView({
         task={detailTask}
         activity={activity}
         canEdit={detailTask?.created_by === currentUserId}
+        canUpdateStatus={Boolean(detailTask?.assignee_ids.includes(currentUserId))}
+        onStatus={(status) => {
+          if (!detailTask) return;
+          applyStatus(detailTask.id, status);
+        }}
         onClose={() => {
           setDetailTask(null);
           setActivity(null);
@@ -414,30 +435,50 @@ export function TaskView({
 function TaskRow({
   task,
   canEdit,
+  canUpdateStatus,
   canDelete,
   today,
+  onStatus,
   onEdit,
   onOpen,
   onDelete,
 }: {
   task: TaskWithRelations;
   canEdit: boolean;
+  canUpdateStatus: boolean;
   canDelete: boolean;
   today: string;
+  onStatus: (status: TaskStatus) => void;
   onEdit: () => void;
   onOpen: () => void;
   onDelete: () => void;
 }) {
+  const [saving, startTransition] = useTransition();
   const overdue = isOverdue(task, today);
   const assignee = task.assignees[0];
   const statusLabel = statusOptions.find((option) => option.value === task.status)?.label ?? task.status;
   const priorityLabel = priorityOptions.find((option) => option.value === task.priority)?.label ?? task.priority;
+
+  function markStatus(status: TaskStatus) {
+    const previous = task.status;
+    onStatus(status);
+    const label = statusOptions.find((option) => option.value === status)?.label ?? status;
+    toast.success(`Status updated to ${label}`);
+    startTransition(async () => {
+      const result = await updateTaskAction(task.id, { status });
+      if (result.error) {
+        onStatus(previous);
+        toast.error(result.error);
+      }
+    });
+  }
 
   return (
     <div
       className={cn(
         "group grid cursor-pointer items-center gap-3 border-t border-[var(--color-border-subtle)] px-4 py-2.5 hover:bg-slate-50/80",
         TABLE_COLS,
+        saving && "opacity-80",
       )}
       onClick={onOpen}
     >
@@ -461,12 +502,31 @@ function TaskRow({
         ) : null}
       </div>
 
-      <span className={cn(
-        "inline-flex h-7 w-full items-center rounded-full px-2.5 text-[11px] font-semibold",
-        statusStyles[task.status],
-      )}>
-        {statusLabel}
-      </span>
+      {canUpdateStatus ? (
+        <select
+          value={task.status}
+          aria-label={`Status for ${task.title}`}
+          className={cn(
+            "h-7 w-full appearance-none rounded-full border-0 px-2.5 text-left text-[11px] font-semibold outline-none",
+            statusStyles[task.status],
+          )}
+          onPointerDown={stopRowOpen}
+          onMouseDown={stopRowOpen}
+          onClick={stopRowOpen}
+          onChange={(event) => markStatus(event.target.value as TaskStatus)}
+        >
+          {statusOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : (
+        <span className={cn(
+          "inline-flex h-7 w-full items-center rounded-full px-2.5 text-[11px] font-semibold",
+          statusStyles[task.status],
+        )}>
+          {statusLabel}
+        </span>
+      )}
 
       <div className="flex min-w-0 items-center gap-2">
         {assignee ? (
@@ -510,6 +570,8 @@ function TaskDetailModal({
   task,
   activity,
   canEdit,
+  canUpdateStatus,
+  onStatus,
   onClose,
   onEdit,
 }: {
@@ -517,6 +579,8 @@ function TaskDetailModal({
   task: TaskWithRelations | null;
   activity: TaskActivityRow[] | null;
   canEdit: boolean;
+  canUpdateStatus: boolean;
+  onStatus: (status: TaskStatus) => void;
   onClose: () => void;
   onEdit: () => void;
 }) {
@@ -562,7 +626,34 @@ function TaskDetailModal({
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge className={cn("border-transparent", priorityStyles[task.priority])}>{task.priority} priority</Badge>
-            <Badge className={cn("border-transparent", statusStyles[task.status])}>{statusLabel}</Badge>
+            {canUpdateStatus ? (
+              <select
+                value={task.status}
+                aria-label={`Status for ${task.title}`}
+                className={cn(
+                  "h-7 appearance-none rounded-full border-0 px-2.5 text-[11px] font-semibold outline-none",
+                  statusStyles[task.status],
+                )}
+                onChange={(event) => {
+                  const status = event.target.value as TaskStatus;
+                  const previous = task.status;
+                  onStatus(status);
+                  toast.success(`Status updated to ${statusOptions.find((option) => option.value === status)?.label ?? status}`);
+                  void updateTaskAction(task.id, { status }).then((result) => {
+                    if (result.error) {
+                      onStatus(previous);
+                      toast.error(result.error);
+                    }
+                  });
+                }}
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            ) : (
+              <Badge className={cn("border-transparent", statusStyles[task.status])}>{statusLabel}</Badge>
+            )}
             {task.completed_late ? (
               <Badge className="border-amber-200 bg-amber-50 text-amber-800">
                 Completed late{task.days_late ? ` · ${task.days_late} day${task.days_late === 1 ? "" : "s"}` : ""}
@@ -668,6 +759,7 @@ function TaskEditor({
   task,
   users,
   clients,
+  currentUserId,
   defaultClientId = "",
   defaultDueDate = "",
   onClose,
@@ -676,6 +768,7 @@ function TaskEditor({
   task: TaskWithRelations | null;
   users: UserOption[];
   clients: ClientOption[];
+  currentUserId: string;
   defaultClientId?: string;
   defaultDueDate?: string;
   onClose: () => void;
@@ -683,6 +776,7 @@ function TaskEditor({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [assignees, setAssignees] = useState<string[]>(task?.assignee_ids ?? []);
+  const canSetStatus = !task || task.assignee_ids.includes(currentUserId);
 
   return (
     <Modal open={open} title={task ? "Edit task" : "Create task"} onClose={onClose}>
@@ -694,7 +788,7 @@ function TaskEditor({
           const input = {
             title: String(formData.get("title") ?? ""),
             description: String(formData.get("description") ?? ""),
-            status: String(formData.get("status") ?? "todo") as TaskStatus,
+            ...(canSetStatus ? { status: String(formData.get("status") ?? "todo") as TaskStatus } : {}),
             priority: String(formData.get("priority") ?? "medium") as TaskPriority,
             assignee_ids: assignees,
             client_id: String(formData.get("client_id") ?? ""),
@@ -733,7 +827,7 @@ function TaskEditor({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="field-label" htmlFor="task-status">Status</label>
-            <Select id="task-status" name="status" defaultValue={task?.status ?? "todo"}>
+            <Select id="task-status" name="status" defaultValue={task?.status ?? "todo"} disabled={!canSetStatus}>
               {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </Select>
           </div>

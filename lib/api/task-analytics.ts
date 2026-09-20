@@ -118,3 +118,5 @@ export const taskAnalyticsService = {
     };
   },
 };
+
+export type TaskAnalytics = Awaited<ReturnType<typeof taskAnalyticsService.get>>;

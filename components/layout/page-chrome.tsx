@@ -36,7 +36,6 @@ export function titleForPath(pathname: string) {
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/work-types")) return "Work types";
   if (pathname.startsWith("/admin")) return "Admin";
-  if (pathname.startsWith("/analytics")) return "Task analytics";
   if (pathname.startsWith("/cashflow")) return "Cashflow";
   if (pathname.startsWith("/clients")) return "Clients";
   if (pathname.startsWith("/reports")) return "Reports";

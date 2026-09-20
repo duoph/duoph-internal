@@ -47,6 +47,13 @@ export function canEditTask(user: CurrentUser, task: { created_by: string }) {
   return task.created_by === user.id;
 }
 
+export function canUpdateTaskStatus(
+  user: CurrentUser,
+  task: { assignee_ids: string[] },
+) {
+  return task.assignee_ids.includes(user.id);
+}
+
 export function canViewTeamAnalytics(user: CurrentUser) {
   return Boolean(user);
 }

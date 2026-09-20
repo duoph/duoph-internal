@@ -1,22 +1,15 @@
-import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardLoading() {
   return (
-    <div className="space-y-8">
-      <Skeleton className="h-10 w-64" />
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="mt-3 h-8 w-32" />
-          </Card>
-        ))}
+    <div className="space-y-4">
+      <Skeleton className="h-4 w-72" />
+      <Skeleton className="h-20 w-full rounded-[var(--radius-card)]" />
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Skeleton className="h-64 rounded-[var(--radius-card)]" />
+        <Skeleton className="h-64 rounded-[var(--radius-card)]" />
       </div>
-      <Card>
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="mt-6 h-40 w-full" />
-      </Card>
+      <Skeleton className="h-48 w-full rounded-[var(--radius-card)]" />
     </div>
   );
 }

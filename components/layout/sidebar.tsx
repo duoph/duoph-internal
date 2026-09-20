@@ -11,7 +11,6 @@ import type { CurrentUser } from "@/lib/auth/authorization";
 const primaryItems = [
   { href: "/dashboard", label: "Overview", icon: "⌂" },
   { href: "/tasks", label: "Tasks", icon: "✓" },
-  { href: "/analytics", label: "Task analytics", icon: "↗" },
 ];
 
 const businessItems = [

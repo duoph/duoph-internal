@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentUser, canAccessTask, canEditTask, canManageTasks } from "@/lib/auth/authorization";
+import { getCurrentUser, canAccessTask, canEditTask, canManageTasks, canUpdateTaskStatus } from "@/lib/auth/authorization";
 import { dbErrorMessage } from "@/lib/db/error-message";
 import { taskService } from "@/lib/api/tasks";
 import type { TaskPriority, TaskStatus } from "@/lib/types/database";
@@ -64,31 +64,38 @@ export async function updateTaskAction(
 
   const current = await taskService.get(id);
   if (!current) return { error: "Task not found." };
-  if (!canEditTask(user, current)) {
-    return { error: "Only the person who created this task can edit it." };
-  }
 
-  const patchSchema = taskSchema.partial();
-  const parsed = patchSchema.safeParse(input);
+  const parsed = taskSchema.partial().safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid task." };
 
+  const statusChanging =
+    parsed.data.status !== undefined && parsed.data.status !== current.status;
+  if (statusChanging && !canUpdateTaskStatus(user, current)) {
+    return { error: "You can only update the status of tasks assigned to you." };
+  }
+
+  const keys = Object.keys(parsed.data).filter((key) => key !== "status" || statusChanging);
+  const statusOnly = keys.length === 1 && keys[0] === "status";
+  if (!canEditTask(user, current) && !statusOnly) {
+    return { error: "You can only update the status of tasks assigned to you." };
+  }
+
   try {
-    await taskService.update(
-      id,
-      {
-        ...parsed.data,
-        ...(parsed.data.description !== undefined ? { description: parsed.data.description ?? "" } : {}),
-        ...(parsed.data.client_id !== undefined ? { client_id: parsed.data.client_id?.trim() || null } : {}),
-        ...(parsed.data.due_date !== undefined ? { due_date: parsed.data.due_date?.trim() || null } : {}),
-        ...(parsed.data.assignee_ids !== undefined
-          ? { assignee_ids: [...new Set(parsed.data.assignee_ids.filter(Boolean))] }
-          : {}),
-        ...(parsed.data.tags !== undefined
-          ? { tags: [...new Set(parsed.data.tags.map((tag) => tag.trim()).filter(Boolean))] }
-          : {}),
-      },
-      user.id,
-    );
+    const next = {
+      ...parsed.data,
+      ...(parsed.data.description !== undefined ? { description: parsed.data.description ?? "" } : {}),
+      ...(parsed.data.client_id !== undefined ? { client_id: parsed.data.client_id?.trim() || null } : {}),
+      ...(parsed.data.due_date !== undefined ? { due_date: parsed.data.due_date?.trim() || null } : {}),
+      ...(parsed.data.assignee_ids !== undefined
+        ? { assignee_ids: [...new Set(parsed.data.assignee_ids.filter(Boolean))] }
+        : {}),
+      ...(parsed.data.tags !== undefined
+        ? { tags: [...new Set(parsed.data.tags.map((tag) => tag.trim()).filter(Boolean))] }
+        : {}),
+    };
+    if (!statusChanging) delete next.status;
+
+    await taskService.update(id, next, user.id);
     const keys = Object.keys(parsed.data);
     const fieldPatch = keys.length > 0 && keys.every((key) => key === "status" || key === "priority");
     if (!fieldPatch) revalidateTasks("all");
